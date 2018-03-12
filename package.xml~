@@ -4,7 +4,7 @@
   <version>0.0.1</version>
   <description>
 
-	Ros Wrapper for Nonlinear Model Predictive Control for Airborne Wind Energy
+	fixed wing control
 
   </description>
   <url>http://www.asl.ethz.com</url>
