@@ -1,4 +1,4 @@
-# fw_ros_ctrl by Thomas Stastny, asl
+# fw_ros_ctrl by Thomas Stastny
 Catkin/ROS package containing fixed-wing high- and low-level control structures.
 
 ### Additional CMake Args
