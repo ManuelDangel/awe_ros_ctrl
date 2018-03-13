@@ -41,111 +41,114 @@ namespace fw_nmpc {
  */
 class FwNMPC {
 
-public:
+ public:
 
-	FwNMPC();
+  FwNMPC();
 
-	/* callbacks */
-	void 	aslctrlDataCb(const mavros_msgs::AslCtrlData::ConstPtr& msg);
-	void 	globPosCb(const sensor_msgs::NavSatFix::ConstPtr& msg);
-	void 	odomCb(const nav_msgs::Odometry::ConstPtr& msg);
-	void 	ekfExtCb(const mavros_msgs::AslEkfExt::ConstPtr& msg);
-	void 	nmpcParamsCb(const mavros_msgs::AslNmpcParams::ConstPtr& msg);
-	void 	waypointListCb(const mavros_msgs::WaypointList::ConstPtr& msg);
-	void 	currentWpCb(const std_msgs::Int32::ConstPtr& msg);
-	void 	homeWpCb(const mavros_msgs::HomePosition::ConstPtr& msg);
-	void 	aslctrlDebugCb(const mavros_msgs::AslCtrlDebug::ConstPtr& msg);
+  /* callbacks */
+  void aslctrlDataCb(const mavros_msgs::AslCtrlData::ConstPtr& msg);
+  void globPosCb(const sensor_msgs::NavSatFix::ConstPtr& msg);
+  void odomCb(const nav_msgs::Odometry::ConstPtr& msg);
+  void ekfExtCb(const mavros_msgs::AslEkfExt::ConstPtr& msg);
+  void nmpcParamsCb(const mavros_msgs::AslNmpcParams::ConstPtr& msg);
+  void waypointListCb(const mavros_msgs::WaypointList::ConstPtr& msg);
+  void currentWpCb(const std_msgs::Int32::ConstPtr& msg);
+  void homeWpCb(const mavros_msgs::HomePosition::ConstPtr& msg);
+  void aslctrlDebugCb(const mavros_msgs::AslCtrlDebug::ConstPtr& msg);
 
-	/* initializations */
-	int 	initNMPC();
-	void 	initACADOVars();
-	void 	initHorizon();
+  /* initializations */
+  int initNMPC();
+  void initACADOVars();
+  void initHorizon();
 
-	/* sets */
-	void 	updateACADO_X0();
-	void	updateACADO_OD();
-	void	updateACADO_Y();
-	void	updateACADO_W();
+  /* sets */
+  void updateACADO_X0();
+  void updateACADO_OD();
+  void updateACADO_Y();
+  void updateACADO_W();
 
-	/* gets */
-	double	getLoopRate();
-	double 	getTimeStep();
-	void 	reqSubs();
-	void 	calculateTrackError(const real_t *in);
+  /* gets */
+  double getLoopRate();
+  double getTimeStep();
+  void reqSubs();
+  void calculateTrackError(const real_t *in);
 
-	/* functions */
-	void 	update();
-	int 	nmpcIteration();
+  /* functions */
+  void update();
+  int nmpcIteration();
 
-	/* publishing encapsulation */
-	void	publishControls(uint64_t &t_ctrl, uint64_t t_iter_approx, int obctrl_status);
-	void	publishAcadoVars();
-	void	publishNmpcInfo(ros::Time t_iter_start, uint64_t t_ctrl, uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);
+  /* publishing encapsulation */
+  void publishControls(uint64_t &t_ctrl, uint64_t t_iter_approx,
+                       int obctrl_status);
+  void publishAcadoVars();
+  void publishNmpcInfo(ros::Time t_iter_start, uint64_t t_ctrl,
+                       uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);
 
-	double	LOOP_RATE;
-	double 	TSTEP;
-	int 	FAKE_SIGNALS;
+  double LOOP_RATE;
+  double TSTEP;
+  int FAKE_SIGNALS;
 
-private:
+ private:
 
-	/* subscription data */
-	Subscriptions 	subs_;
+  /* subscription data */
+  Subscriptions subs_;
 
-	/* node handles */
-	ros::NodeHandle nmpc_;
+  /* node handles */
+  ros::NodeHandle nmpc_;
 
-	/* subscribers */
-	ros::Subscriber aslctrl_data_sub_;
-	ros::Subscriber glob_pos_sub_;
-	ros::Subscriber odom_sub_;
-	ros::Subscriber ekf_ext_sub_;
-	ros::Subscriber nmpc_params_sub_;
-	ros::Subscriber waypoint_list_sub_;
-	ros::Subscriber current_wp_sub_;
-	ros::Subscriber home_wp_sub_;
-	ros::Subscriber aslctrl_debug_sub_;
+  /* subscribers */
+  ros::Subscriber aslctrl_data_sub_;
+  ros::Subscriber glob_pos_sub_;
+  ros::Subscriber odom_sub_;
+  ros::Subscriber ekf_ext_sub_;
+  ros::Subscriber nmpc_params_sub_;
+  ros::Subscriber waypoint_list_sub_;
+  ros::Subscriber current_wp_sub_;
+  ros::Subscriber home_wp_sub_;
+  ros::Subscriber aslctrl_debug_sub_;
 
-	/* publishers */
-	ros::Publisher obctrl_pub_;
-	ros::Publisher nmpc_info_pub_;
-	ros::Publisher acado_vars_pub_;
+  /* publishers */
+  ros::Publisher obctrl_pub_;
+  ros::Publisher nmpc_info_pub_;
+  ros::Publisher acado_vars_pub_;
 
-	/* time keeping */
-	ros::Time t_lastctrl;
+  /* time keeping */
+  ros::Time t_lastctrl;
 
-	/* controller switch */
-	bool bModeChanged;
-	int	last_ctrl_mode;
-	int obctrl_en_;
+  /* controller switch */
+  bool bModeChanged;
+  int last_ctrl_mode;
+  int obctrl_en_;
 
-	/* path definitions */
-	int last_wp_idx_;
-	PathManager paths_;
+  /* path definitions */
+  int last_wp_idx_;
+  PathManager paths_;
 
-	/* continuity */
-	bool bYawReceived;
-	float last_yaw_msg_;
+  /* continuity */
+  bool bYawReceived;
+  float last_yaw_msg_;
 
-	/* track error */
-	float track_error_lat_;
-	float track_error_lon_;
-	double T_b_lat_;
+  /* track error */
+  float track_error_lat_;
+  float track_error_lon_;
+  double T_b_lat_;
 
-	/* weight scalers */
-	float W_scale_[NY];
+  /* weight scalers */
+  float W_scale_[NY];
 
-	/* control offsets / saturations / normalizations */ //TODO: this should probably not be hard-coded.
-	// uT, phi_ref, theta_ref
-	const double CTRL_DEADZONE[3] = {0.2, 0.0, 0.0}; // zero-based deadzone TODO: non-zero-based? asymmetric?
+  /* control offsets / saturations / normalizations */  //TODO: this should probably not be hard-coded.
+  // uT, phi_ref, theta_ref
+  const double CTRL_DEADZONE[3] = { 0.2, 0.0, 0.0 };  // zero-based deadzone TODO: non-zero-based? asymmetric?
 //	const double CTRL_OFFSET[3] = {0.0, 0.0, 0.0}; // constant offset TODO: how to use?
-	const double CTRL_NORMALIZATION[3] = {0.8, 1.0, 1.0}; // normlization !!must not be zero!!
-	const double CTRL_SATURATION[3][2] = { {0.0, 1.0}, {-0.5236, 0.5236}, {-0.2618, 0.2618} }; // these are saturations for the internal model ATM* TODO: probably should incorporate some saturation for the incoming controls as well
+  const double CTRL_NORMALIZATION[3] = { 0.8, 1.0, 1.0 };  // normlization !!must not be zero!!
+  const double CTRL_SATURATION[3][2] = { { 0.0, 1.0 }, { -0.5236, 0.5236 }, {
+      -0.2618, 0.2618 } };  // these are saturations for the internal model ATM* TODO: probably should incorporate some saturation for the incoming controls as well
 
-	/* node functions */
-	void 	shutdown();
+  /* node functions */
+  void shutdown();
 
 };
 
-} // namespace fw_nmpc
+}  // namespace fw_nmpc
 
 #endif
