@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>awe_ctrl-Release@awe_ros_ctrl</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.cdt.make.core.makeBuilder</name>
+			<triggers>clean,full,incremental,</triggers>
+			<arguments>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>
+					<value>clean</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableCleanBuild</key>
+					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.append_environment</key>
+					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.stopOnError</key>
+					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enabledIncrementalBuild</key>
+					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.command</key>
+					<value>/usr/bin/make</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.contents</key>
+					<value>org.eclipse.cdt.make.core.activeConfigSettings</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.inc</key>
+					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.arguments</key>
+					<value>-j8</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.buildLocation</key>
+					<value>/home/manuel/amz_ws/src/awe_ros_ctrl</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.useDefaultBuildCmd</key>
+					<value>false</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.environment</key>
+					<value>VERBOSE=1|CMAKE_NO_VERBOSE=1|</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableFullBuild</key>
+					<value>true</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.auto</key>
+					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.enableAutoBuild</key>
+					<value>false</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.target.clean</key>
+					<value>clean</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.fullBuildTarget</key>
+					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.buildArguments</key>
+					<value></value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.build.location</key>
+					<value>/home/manuel/amz_ws/src/awe_ros_ctrl</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.make.core.autoBuildTarget</key>
+					<value>all</value>
+				</dictionary>
+				<dictionary>
+					<key>org.eclipse.cdt.core.errorOutputParser</key>
+					<value>org.eclipse.cdt.core.GmakeErrorParser;org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.GLDErrorParser;</value>
+				</dictionary>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.cdt.make.core.ScannerConfigBuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.cdt.core.ccnature</nature>
+		<nature>org.eclipse.cdt.make.core.makeNature</nature>
+		<nature>org.eclipse.cdt.make.core.ScannerConfigNature</nature>
+		<nature>org.eclipse.cdt.core.cnature</nature>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>[Subprojects]</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Subprojects]/gtest</name>
+			<type>2</type>
+			<location>/usr/src/gtest</location>
+		</link>
+		<link>
+			<name>[Targets]</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/Source Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/Source Files/fw_nmpc.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/fw_nmpc.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/Header Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/CMake Rules</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/Resources</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[exe] fw_nmpc/Object Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/fw_nmpc.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/fw_nmpc.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/acado_auxiliary_functions.c</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/acado_auxiliary_functions.c</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/acado_integrator.c</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/acado_integrator.c</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/acado_qpoases_interface.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/acado_qpoases_interface.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/acado_solver.c</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/acado_solver.c</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/Bounds.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/Bounds.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/Constraints.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/Constraints.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/CyclingManager.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/CyclingManager.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/Indexlist.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/Indexlist.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/MessageHandling.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/MessageHandling.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/QProblem.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/QProblem.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/QProblemB.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/QProblemB.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/SubjectTo.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/SubjectTo.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/Utils.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/Utils.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Source Files/SolutionAnalysis.cpp</name>
+			<type>1</type>
+			<location>/home/manuel/amz_ws/src/awe_ros_ctrl/src/acado_solver/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Header Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/CMake Rules</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Resources</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] fw_nmpc_lib/Object Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/Source Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/Source Files/gtest-all.cc</name>
+			<type>1</type>
+			<location>/usr/src/gtest/src/gtest-all.cc</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/Header Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/CMake Rules</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/Resources</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest/Object Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/Source Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/Source Files/gtest_main.cc</name>
+			<type>1</type>
+			<location>/usr/src/gtest/src/gtest_main.cc</location>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/Header Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/CMake Rules</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/Resources</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+		<link>
+			<name>[Targets]/[lib] gtest_main/Object Files</name>
+			<type>2</type>
+			<locationURI>virtual:/virtual</locationURI>
+		</link>
+	</linkedResources>
+</projectDescription>
