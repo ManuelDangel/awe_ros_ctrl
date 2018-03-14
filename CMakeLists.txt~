@@ -50,7 +50,7 @@ add_library(fw_nmpc_lib
   src/acado_solver/qpoases/SRC/SubjectTo.cpp
   src/acado_solver/qpoases/SRC/Utils.cpp
   src/acado_solver/qpoases/SRC/EXTRAS/SolutionAnalysis.cpp
-  src/acado_solver/model.c
+  #src/acado_solver/model.c
 )
 
 add_executable(fw_nmpc

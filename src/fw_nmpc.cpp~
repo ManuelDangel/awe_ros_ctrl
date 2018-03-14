@@ -18,8 +18,8 @@
 namespace fw_nmpc {
 
 
-FwNMPC::FwNMPC() {
-    //: LOOP_RATE(20.0)  // MAGIC NUMBER
+FwNMPC::FwNMPC()
+    : LOOP_RATE(20.0) {  // MAGIC NUMBER
       //TSTEP(0.1),  // MAGIC NUMBER
       //FAKE_SIGNALS(0),
       //t_lastctrl { 0 },

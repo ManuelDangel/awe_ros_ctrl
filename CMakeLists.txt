@@ -6,7 +6,7 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-aggressive-loop-optimizations")
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp std_msgs mavros message_generation
+  roscpp roslib std_msgs mavros message_generation
 )
 
 add_message_files(
