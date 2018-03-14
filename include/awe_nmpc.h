@@ -13,6 +13,9 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 
+// general includes
+#include "math.h"
+
 // INCLUDES for ...
 #include "subs.h"
 #include "path_manager.h"
@@ -22,12 +25,12 @@
 #include "acado_auxiliary_functions.h"
 
 /* some convenient definitions */
-#define NX	ACADO_NX  /* Number of differential state variables.  */
-#define NU 	ACADO_NU  /* Number of control inputs. */
-#define NOD	ACADO_NOD /* Number of online data values. */
-#define NY 	ACADO_NY  /* Number of measurements/references on nodes 0..N - 1. */
-#define NYN	ACADO_NYN	/* Number of measurements/references on node N. */
-#define N	ACADO_N     /* Number of intervals in the horizon. */
+#define NX  ACADO_NX  /* Number of differential state variables.  */
+#define NU  ACADO_NU  /* Number of control inputs. */
+#define NOD ACADO_NOD /* Number of online data values. */
+#define NY  ACADO_NY  /* Number of measurements/references on nodes 0..N - 1. */
+#define NYN ACADO_NYN /* Number of measurements/references on node N. */
+#define N   ACADO_N     /* Number of intervals in the horizon. */
 #define NX_AUGM 2     /* Number of augmented differential state variables. */
 
 /* global variables used by the solver. */
@@ -35,6 +38,21 @@ ACADOvariables acadoVariables;
 ACADOworkspace acadoWorkspace;
 
 namespace fw_nmpc {
+
+struct Xindex {  // Lists the indexes of the different states
+  int psi, theta, gamma, phi, vt, phi_des;
+};
+
+struct Uindex {  // Lists the indexes of the different control inputs
+  int dphi, phi_slack, theta_slack;
+};
+
+struct Pindex {  // Lists the indexes of the different online parameters
+  int vw, r, r_dot, circle_azimut, circle_elevation, circle_angle, m;
+  int cla, cda, weight_tracking, weight_power;
+};
+
+
 /*
  * @brief fw_nmpc class
  *
@@ -90,6 +108,13 @@ class FwNMPC {
 
   /* node handles */
   ros::NodeHandle nmpc_;
+
+  // NMPC Indexes
+  Xindex x_index;
+  Uindex u_index;
+  Pindex p_index;
+  // NMPC Parameter
+  double parameter[NOD];
 
   /* subscribers */
   // ros::Subscriber aslctrl_data_sub_;

@@ -221,7 +221,8 @@ void FwNMPC::aslctrlDebugCb(const mavros_msgs::AslCtrlDebug::ConstPtr& msg) {
 
   obctrl_en_ = msg->i8_1;
 }
-
+*/
+/*
 int FwNMPC::initNMPC() {
 
   // get loop rate
@@ -568,7 +569,8 @@ void FwNMPC::updateACADO_W() {
     acadoVariables.WN[i * NYN + i] = W[i] / W_scale_[i];
   }
 }
-
+*/
+/*
 double FwNMPC::getLoopRate() {
   return LOOP_RATE;
 }
@@ -614,6 +616,9 @@ void FwNMPC::reqSubs() {  //TODO: extend this and/or change this to all subs/ini
 
   return;
 }
+
+*/
+/*
 
 void FwNMPC::calculateTrackError(const real_t *in) {
   // Code snippet from end lsq term in model.c

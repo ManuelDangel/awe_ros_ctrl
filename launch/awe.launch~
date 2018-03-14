@@ -1,5 +1,5 @@
 <launch>
-  <node name="nmpc" pkg="awe_ctrl" type="fw_nmpc"/>
+  <node name="nmpc" pkg="awe_ctrl" type="awe_nmpc"/>
   <param name="/nmpc/loop_rate" type="double" value="10.0" />
   <param name="/nmpc/time_step" type="double" value="0.1" />
 
