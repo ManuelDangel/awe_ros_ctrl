@@ -13,7 +13,6 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 
-
 // INCLUDES for ...
 #include "subs.h"
 #include "path_manager.h"
@@ -22,21 +21,20 @@
 #include "acado_common.h"
 #include "acado_auxiliary_functions.h"
 
-
 /* some convenient definitions */
-#define NX	ACADO_NX	/* Number of differential state variables.  */
-#define NU 	ACADO_NU	/* Number of control inputs. */
-#define NOD	ACADO_NOD	/* Number of online data values. */
-#define NY 	ACADO_NY 	/* Number of measurements/references on nodes 0..N - 1. */
+#define NX	ACADO_NX  /* Number of differential state variables.  */
+#define NU 	ACADO_NU  /* Number of control inputs. */
+#define NOD	ACADO_NOD /* Number of online data values. */
+#define NY 	ACADO_NY  /* Number of measurements/references on nodes 0..N - 1. */
 #define NYN	ACADO_NYN	/* Number of measurements/references on node N. */
-#define N	ACADO_N		/* Number of intervals in the horizon. */
-#define NX_AUGM 2		/* Number of augmented differential state variables. */
+#define N	ACADO_N     /* Number of intervals in the horizon. */
+#define NX_AUGM 2     /* Number of augmented differential state variables. */
 
 /* global variables used by the solver. */
 ACADOvariables acadoVariables;
 ACADOworkspace acadoWorkspace;
 
-namespace awe_nmpc {
+namespace fw_nmpc {
 /*
  * @brief fw_nmpc class
  *
@@ -58,39 +56,33 @@ class FwNMPC {
   //void currentWpCb(const std_msgs::Int32::ConstPtr& msg);
   //void homeWpCb(const mavros_msgs::HomePosition::ConstPtr& msg);
   // void aslctrlDebugCb(const mavros_msgs::AslCtrlDebug::ConstPtr& msg);
-
   /* initializations */
-  //int initNMPC();
-  //void initACADOVars();
+  int initNMPC();
+  void initACADOVars();
   //void initHorizon();
-
   /* sets */
   //void updateACADO_X0();
   //void updateACADO_OD();
   //void updateACADO_Y();
   //void updateACADO_W();
-
   /* gets */
-  //double getLoopRate();
-  //double getTimeStep();
+  double getLoopRate();
+  double getTimeStep();
   //void reqSubs();
   //void calculateTrackError(const real_t *in);
-
   /* functions */
   //void update();
   //int nmpcIteration();
-
   /* publishing encapsulation */
   /*void publishControls(uint64_t &t_ctrl, uint64_t t_iter_approx,
-                       int obctrl_status);*/
+   int obctrl_status);*/
   //void publishAcadoVars();
   /*void publishNmpcInfo(ros::Time t_iter_start, uint64_t t_ctrl,
-                       uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);*/
+   uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);*/
 
-  //double LOOP_RATE;
-  //double TSTEP;
-  //int FAKE_SIGNALS;
-
+  double LOOP_RATE;
+  double TSTEP;
+  int FAKE_SIGNALS;
  private:
 
   /* subscription data */
@@ -109,12 +101,10 @@ class FwNMPC {
   //ros::Subscriber current_wp_sub_;
   //ros::Subscriber home_wp_sub_;
   // ros::Subscriber aslctrl_debug_sub_;
-
   /* publishers */
   // ros::Publisher obctrl_pub_;
   // ros::Publisher nmpc_info_pub_;
   // ros::Publisher acado_vars_pub_;
-
   /* time keeping */
   ros::Time t_lastctrl;
 

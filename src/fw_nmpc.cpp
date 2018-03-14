@@ -243,6 +243,10 @@ int FwNMPC::initNMPC() {
   return RET;
 }
 
+
+*/
+
+/*
 void FwNMPC::initACADOVars() {
 
   //TODO: maybe actually wait for all subscriptions to be filled here before initializing?
