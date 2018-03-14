@@ -6,7 +6,7 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-aggressive-loop-optimizations")
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp roslib std_msgs mavros message_generation
+  roscpp std_msgs mavros message_generation
 )
 
 add_message_files(
@@ -35,7 +35,7 @@ include_directories(
 )
 
 add_library(fw_nmpc_lib
-  src/fw_nmpc.cpp
+  src/awe_nmpc.cpp
   src/acado_solver/acado_auxiliary_functions.c
   src/acado_solver/acado_integrator.c
   src/acado_solver/acado_qpoases_interface.cpp
@@ -54,7 +54,7 @@ add_library(fw_nmpc_lib
 )
 
 add_executable(fw_nmpc
-  src/fw_nmpc.cpp
+  src/awe_nmpc.cpp
 )
 
 target_link_libraries(fw_nmpc
