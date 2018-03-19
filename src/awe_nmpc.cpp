@@ -142,12 +142,14 @@ void FwNMPC::initACADOVars() {
   }
   // weights
   memset(acadoVariables.W, 0, sizeof(acadoVariables.W));  // fill all with zero
-  std::cout << sizeof(acadoVariables.W) << std::endl;
-  for (int i = 0; i < N; ++i) {
+  /*for (int i = 0; i < N; ++i) {
     for (int j = 0; j < NY; ++j) {
       acadoVariables.W[ NY * NY * i + NY * j + j] = W[j];  // fill diagonals
       std::cout << "loop i " << i << " j " << j << std::endl;
     }
+  }*/
+  for (int i = 0; i < NY; ++i) {
+    acadoVariables.W[i * NY + i] = W[i];  // fill diagonals
   }
   std::cout << "here i1" << std::endl;
   memset(acadoVariables.WN, 0, sizeof(acadoVariables.WN));  // fill all with zero
