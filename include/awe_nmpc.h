@@ -31,7 +31,7 @@
 #define NY  ACADO_NY  /* Number of measurements/references on nodes 0..N - 1. */
 #define NYN ACADO_NYN /* Number of measurements/references on node N. */
 #define N   ACADO_N     /* Number of intervals in the horizon. */
-#define NX_AUGM 2     /* Number of augmented differential state variables. */
+// #define NX_AUGM 2     /* Number of augmented differential state variables. */
 
 /* global variables used by the solver. */
 ACADOvariables acadoVariables;

@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <awe_nmpc.h>
 
 namespace fw_nmpc {
@@ -96,7 +97,8 @@ int FwNMPC::initNMPC() {
   ROS_INFO("initNMPC: ACADO variables initialized");
 
   // Initialize the solver.
-  int RET = 0;  //initializeSolver();
+  int RET = acado_initializeSolver();
+
 
   return RET;
 }
@@ -104,7 +106,6 @@ int FwNMPC::initNMPC() {
 
 void FwNMPC::initACADOVars() {
   // TODO: maybe actually wait for all subscriptions to be filled here before initializing?
-  std::cout << "here initACADOVars" << std::endl;
   // put something reasonable here.. NOT all zeros, solver is initialized from here //
   double X[NX] = { parameter[p_index.circle_azimut],
       parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
@@ -151,13 +152,16 @@ void FwNMPC::initACADOVars() {
   for (int i = 0; i < NY; ++i) {
     acadoVariables.W[i * NY + i] = W[i];  // fill diagonals
   }
-  std::cout << "here i1" << std::endl;
+
   memset(acadoVariables.WN, 0, sizeof(acadoVariables.WN));  // fill all with zero
   for (int i = 0; i < NYN; ++i) {
     acadoVariables.WN[i * NYN + i] = WN[i];  // fill diagonals
   }
-  std::cout << "here i2" << std::endl;
 }
+
+
+
+
 
 double FwNMPC::getLoopRate() {
   return LOOP_RATE;
@@ -186,7 +190,6 @@ int main(int argc, char **argv) {
   //nmpc.reqSubs();
 
   // initialize states, params, and solver //
-  std::cout << "here before initNMPC" << std::endl;
   int ret = nmpc.initNMPC();
 
   if (ret != 0) {
@@ -197,10 +200,10 @@ int main(int argc, char **argv) {
   //
   // NMPC loop
   //
-  /*
+
   double loop_rate = nmpc.getLoopRate();
   ros::Rate nmpc_rate(loop_rate);
-  ROS_ERROR("fw_nmpc: entering NMPC loop");
+  ROS_INFO("awe_nmpc: entering NMPC loop");
   while (ros::ok()) {
 
     // empty callback queues //
@@ -208,7 +211,7 @@ int main(int argc, char **argv) {
 
     // nmpc iteration step //
     //ret = nmpc.nmpcIteration();
-    ROS_INFO("1 Loop");
+    ROS_INFO("Looping");
     if (ret != 0) {
       ROS_ERROR("nmpc_iteration: error in qpOASES QP solver.");
     return 1;
@@ -217,7 +220,7 @@ int main(int argc, char **argv) {
     // sleep //
     nmpc_rate.sleep();
   }
-  */
+
 
 
   ROS_ERROR("awe_nmpc: closing...");
