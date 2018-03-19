@@ -54,7 +54,7 @@ add_library(fw_nmpc_lib
 )
 
 add_executable(fw_nmpc
-  src/fw_nmpc.cpp
+  src/awe_nmpc.cpp
 )
 
 target_link_libraries(fw_nmpc

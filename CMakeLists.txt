@@ -34,7 +34,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(fw_nmpc_lib
+add_library(awe_nmpc_lib
   src/awe_nmpc.cpp
   src/acado_solver/acado_auxiliary_functions.c
   src/acado_solver/acado_integrator.c
@@ -53,12 +53,12 @@ add_library(fw_nmpc_lib
   #src/acado_solver/model.c
 )
 
-add_executable(fw_nmpc
+add_executable(awe_nmpc
   src/awe_nmpc.cpp
 )
 
-target_link_libraries(fw_nmpc
-  fw_nmpc_lib
+target_link_libraries(awe_nmpc
+  awe_nmpc_lib
   ${catkin_LIBRARIES} 
 )
 

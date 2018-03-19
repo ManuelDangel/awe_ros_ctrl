@@ -7,20 +7,13 @@ FwNMPC::FwNMPC()
     : LOOP_RATE(20.0),  // MAGIC NUMBER
       TSTEP(0.1),  // MAGIC NUMBER
       FAKE_SIGNALS(0),
-      t_lastctrl { 0 },
+      t_lastctrl { ros::Time::now() },
       bModeChanged(false),
       last_ctrl_mode(0),
       obctrl_en_(0),
-      last_wp_idx_(-1),
       bYawReceived(false),
-      last_yaw_msg_(0.0f),
-      track_error_lat_(0.0f),
-      track_error_lon_(0.0f),
-      T_b_lat_(1.0),
-      W_scale_ { 0 } {
-
+      last_yaw_msg_(0.0f) {
   ROS_INFO("Instance of NMPC created");
-
   /* subscribers */
   /*  aslctrl_data_sub_ = nmpc_.subscribe("/mavros/aslctrl/data", 1,
    &FwNMPC::aslctrlDataCb, this); */
@@ -49,11 +42,29 @@ FwNMPC::FwNMPC()
    true); */
 
   // Initialize NMPC Indexes //
-  x_index = {0, 1, 2, 3, 4, 5};
-  u_index = {0, 1, 2};
-  p_index = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-  std::cout << "here 10";
+  x_index.psi = 0;  // states
+  x_index.theta = 1;
+  x_index.gamma = 2;
+  x_index.phi = 3;
+  x_index.vt = 4;
+  x_index.phi_des = 5;
+  u_index.dphi = 0;  // control inputs
+  u_index.phi_slack = 1;
+  u_index.theta_slack = 2;
+  p_index.vw = 0;  // parameters
+  p_index.r = 1;
+  p_index.r_dot = 2;
+  p_index.circle_azimut = 3;
+  p_index.circle_elevation = 4;
+  p_index.circle_angle = 5;
+  p_index.m = 6;
+  p_index.cla = 7;
+  p_index.cda = 8;
+  p_index.weight_tracking = 9;
+  p_index.weight_power = 10;
+
+
   // Initialize NMPC Parameters //
   parameter[p_index.vw] = 10;
   parameter[p_index.r] = 220;
@@ -66,7 +77,7 @@ FwNMPC::FwNMPC()
   parameter[p_index.cda] = 0.07;
   parameter[p_index.weight_tracking] = 1;
   parameter[p_index.weight_power] = 1;
-  std::cout << "here 11";
+
   // Initialize Parameters from Launch File //
   // get loop rate
   nmpc_.getParam("/nmpc/loop_rate", LOOP_RATE);
@@ -93,7 +104,7 @@ int FwNMPC::initNMPC() {
 
 void FwNMPC::initACADOVars() {
   // TODO: maybe actually wait for all subscriptions to be filled here before initializing?
-  std::cout << "here 1";
+  std::cout << "here initACADOVars" << std::endl;
   // put something reasonable here.. NOT all zeros, solver is initialized from here //
   double X[NX] = { parameter[p_index.circle_azimut],
       parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
@@ -129,18 +140,21 @@ void FwNMPC::initACADOVars() {
     for (int j = 0; j < NY; ++j)
       acadoVariables.y[i * NY + j] = Y[j];
   }
-
   // weights
   memset(acadoVariables.W, 0, sizeof(acadoVariables.W));  // fill all with zero
+  std::cout << sizeof(acadoVariables.W) << std::endl;
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < NY; ++j) {
       acadoVariables.W[ NY * NY * i + NY * j + j] = W[j];  // fill diagonals
+      std::cout << "loop i " << i << " j " << j << std::endl;
     }
   }
+  std::cout << "here i1" << std::endl;
   memset(acadoVariables.WN, 0, sizeof(acadoVariables.WN));  // fill all with zero
   for (int i = 0; i < NYN; ++i) {
     acadoVariables.WN[i * NYN + i] = WN[i];  // fill diagonals
   }
+  std::cout << "here i2" << std::endl;
 }
 
 double FwNMPC::getLoopRate() {
@@ -163,7 +177,6 @@ void FwNMPC::shutdown() {
 int main(int argc, char **argv) {
   // initialize node //
   ros::init(argc, argv, "awe_nmpc");
-  std::cout << "here 0";
   fw_nmpc::FwNMPC nmpc;
   ros::spinOnce();
 
@@ -171,37 +184,40 @@ int main(int argc, char **argv) {
   //nmpc.reqSubs();
 
   // initialize states, params, and solver //
+  std::cout << "here before initNMPC" << std::endl;
   int ret = nmpc.initNMPC();
 
   if (ret != 0) {
     ROS_ERROR("initNMPC: error in qpOASES QP solver.");
     return 1;
   }
+
+  //
+  // NMPC loop
+  //
   /*
-   //
-   // NMPC loop
-   //
-   double loop_rate = nmpc.getLoopRate();
-   ros::Rate nmpc_rate(loop_rate);
-   ROS_ERROR("fw_nmpc: entering NMPC loop");
-   while (ros::ok()) {
+  double loop_rate = nmpc.getLoopRate();
+  ros::Rate nmpc_rate(loop_rate);
+  ROS_ERROR("fw_nmpc: entering NMPC loop");
+  while (ros::ok()) {
 
-   // empty callback queues //
-   ros::spinOnce();
+    // empty callback queues //
+    ros::spinOnce();
 
-   // nmpc iteration step //
-   ret = nmpc.nmpcIteration();
+    // nmpc iteration step //
+    //ret = nmpc.nmpcIteration();
+    ROS_INFO("1 Loop");
+    if (ret != 0) {
+      ROS_ERROR("nmpc_iteration: error in qpOASES QP solver.");
+    return 1;
+    }
 
-   if (ret != 0) {
-   ROS_ERROR("nmpc_iteration: error in qpOASES QP solver.");
-   return 1;
-   }
+    // sleep //
+    nmpc_rate.sleep();
+  }
+  */
 
-   // sleep //
-   nmpc_rate.sleep();
-   }
 
-   */
   ROS_ERROR("awe_nmpc: closing...");
 
   return 0;

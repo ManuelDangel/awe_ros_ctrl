@@ -18,7 +18,7 @@
 
 // INCLUDES for ...
 #include "subs.h"
-#include "path_manager.h"
+// #include "path_manager.h"
 
 // INCLUDES for ACADO
 #include "acado_common.h"
@@ -48,8 +48,8 @@ struct Uindex {  // Lists the indexes of the different control inputs
 };
 
 struct Pindex {  // Lists the indexes of the different online parameters
-  int vw, r, r_dot, circle_azimut, circle_elevation, circle_angle, m;
-  int cla, cda, weight_tracking, weight_power;
+  int vw, r, r_dot, circle_azimut, circle_elevation, circle_angle, m,
+  cla, cda, weight_tracking, weight_power;
 };
 
 
@@ -139,20 +139,21 @@ class FwNMPC {
   int obctrl_en_;
 
   /* path definitions */
-  int last_wp_idx_;
-  PathManager paths_;
+  // int last_wp_idx_;
+  // PathManager paths_;
 
   /* continuity */
   bool bYawReceived;
   float last_yaw_msg_;
 
+
   /* track error */
-  float track_error_lat_;
-  float track_error_lon_;
-  double T_b_lat_;
+  // float track_error_lat_;
+  // float track_error_lon_;
+  // double T_b_lat_;
 
   /* weight scalers */
-  float W_scale_[NY];
+  // float W_scale_[NY];
 
   /* control offsets / saturations / normalizations */  //TODO: this should probably not be hard-coded.
   // uT, phi_ref, theta_ref
