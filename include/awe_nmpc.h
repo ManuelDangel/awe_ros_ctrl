@@ -90,11 +90,10 @@ class FwNMPC {
   //void calculateTrackError(const real_t *in);
   /* functions */
   //void update();
-  //int nmpcIteration();
+  int nmpcIteration();
   /* publishing encapsulation */
-  /*void publishControls(uint64_t &t_ctrl, uint64_t t_iter_approx,
-   int obctrl_status);*/
-  //void publishAcadoVars();
+  void publishControls();
+  // void publishAcadoVars();
   /*void publishNmpcInfo(ros::Time t_iter_start, uint64_t t_ctrl,
    uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);*/
 

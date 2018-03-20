@@ -160,6 +160,145 @@ void FwNMPC::initACADOVars() {
 }
 
 
+int FwNMPC::nmpcIteration() {
+  // elapsed time reusable var //
+  ros::Duration t_elapsed;
+  // start nmpc iteration timer --> //
+  ros::Time t_iter_start = ros::Time::now();
+  // various timer initializations //
+  uint64_t t_ctrl = 0;  // time elapsed since last control action was published (stays zero if not in auto mode)
+  uint64_t t_solve = 0; // time elapsed during nmpc preparation and feedback step (solve time)
+  uint64_t t_update = 0;  // time elapsed during array updates
+  uint64_t t_wp_man = 0;  // time elapsed during waypoint management
+
+  // initialize returns //
+  int RET[2] = { 0, 0 };
+
+  // check mode //  //TODO: should include some checking to make sure not on ground/ other singularity ridden cases //TODO: this does not cover RC loss..
+  if (last_ctrl_mode != 5)
+    bModeChanged = true;
+  last_ctrl_mode = subs_.aslctrl_data.aslctrl_mode;
+  if (subs_.aslctrl_data.aslctrl_mode == 5) {
+
+    // start update timer --> //
+    ros::Time t_update_start = ros::Time::now();
+
+    int obctrl_status = 0;
+
+    if (bModeChanged) {
+      // first time in loop //
+
+      // update home wp
+      // -->initHorizon needs up to date wp info for ned calculation
+      const double new_home_wp[3] = { subs_.home_wp.latitude, subs_.home_wp
+          .longitude, subs_.home_wp.altitude };
+      paths_.setHomeWp(new_home_wp);
+      last_wp_idx_ = -1;
+
+      // initHorizon BEFORE Y, this is to make sure controls and prev_horiz are reinitialized before reaching Y update.
+      initHorizon();
+      updateACADO_Y();
+      updateACADO_W();
+
+      bModeChanged = false;
+    } else {
+      //regular update
+
+      // update ACADO states/references/weights //
+      updateACADO_X0();  // note this shifts augmented states
+      updateACADO_Y();
+      updateACADO_W();
+    }
+
+    // update time in us <-- //
+    t_elapsed = ros::Time::now() - t_update_start;
+    t_update = t_elapsed.toNSec() / 1000;
+
+    // update ACADO online data //
+    updateACADO_OD();
+
+    // start nmpc solve timer --> //
+    ros::Time t_solve_start = ros::Time::now();
+
+    // Prepare first step //
+    RET[0] = acado_preparationStep();
+    if (RET[0] != 0) {
+      ROS_ERROR("nmpcIteration: preparation step error, code %d", RET[0]);
+      obctrl_status = RET[0];
+    }
+
+    // Perform the feedback step. //
+    RET[1] = acado_feedbackStep();
+    if (RET[1] != 0) {
+      ROS_ERROR("nmpcIteration: feedback step error, code %d", RET[1]);
+      obctrl_status = RET[1];  //TODO: find a way that doesnt overwrite the other one...
+    }
+
+    // solve time in us <-- //
+    t_elapsed = ros::Time::now() - t_solve_start;
+    t_solve = t_elapsed.toNSec() / 1000;
+
+    // nmpc iteration time in us (approximate for publishing to pixhawk) <-- //
+    t_elapsed = ros::Time::now() - t_iter_start;
+    uint64_t t_iter_approx = t_elapsed.toNSec() / 1000;
+
+    // publish control action //
+    publishControls();
+
+    //TODO: this should be interpolated in the event of Tnmpc ~= Tfcall //TODO: should this be before the feedback step?
+    // Optional: shift the initialization (look in acado_common.h). //
+    acado_shiftStates(2, 0, 0);
+    acado_shiftControls( 0 );
+  } else {
+    // send "alive" status
+    publishControls();  // zero control input
+  }
+
+  // publish ACADO variables //  // should this go outside?
+  // publishAcadoVars();
+
+  // publish nmpc info //
+  // publishNmpcInfo(t_iter_start, t_ctrl, t_solve, t_update, t_wp_man);
+
+  // return status //
+  return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;  //perhaps a better reporting method?
+}
+
+
+void FwNMPC::publishControls() {
+  /*
+  double ctrl[NU];
+  for (int i = 0; i < NU; ++i)
+    ctrl[i] = acadoVariables.u[i];
+
+  // saturate controls for internal model constraints //
+  for (int i = 0; i < NU; ++i) {
+    if (ctrl[i] < CTRL_SATURATION[i][0])
+      ctrl[i] = CTRL_SATURATION[i][0];
+    if (ctrl[i] > CTRL_SATURATION[i][1])
+      ctrl[i] = CTRL_SATURATION[i][1];
+  }
+
+  // publish obctrl msg //
+  mavros_msgs::AslObCtrl obctrl_msg;
+  obctrl_msg.timestamp = t_iter_approx;
+  obctrl_msg.uThrot = (isnan((float) ctrl[0])) ? 0.0f : (float) ctrl[0];
+  obctrl_msg.uThrot2 = (float) track_error_lon_;  // for monitoring on QGC
+  obctrl_msg.uAilR = (isnan((float) ctrl[1])) ? 0.0f : (float) ctrl[1];
+  obctrl_msg.uAilL = (float) track_error_lat_;  // for monitoring on QGC
+  obctrl_msg.uElev = (isnan((float) ctrl[2])) ? 0.0f : (float) ctrl[2];
+  obctrl_msg.obctrl_status =
+      (isnan((float) ctrl[0]) || isnan((float) ctrl[1])
+          || isnan((float) ctrl[2])) ? 11 : (uint8_t) obctrl_status;  // status=11 for nan detection
+
+  obctrl_pub_.publish(obctrl_msg);
+  */
+
+  // update last control timestamp / publish elapsed ctrl loop time //
+  ros::Duration t_elapsed = ros::Time::now() - t_lastctrl;
+  // t_ctrl = t_elapsed.toNSec() / 1000;  //us
+  t_lastctrl = ros::Time::now();
+}
 
 
 
@@ -176,9 +315,8 @@ void FwNMPC::shutdown() {
   ros::shutdown();
 }
 
-}
-;
-// namespace awe_nmpc
+};  // namespace awe_nmpc
+
 
 int main(int argc, char **argv) {
   // initialize node //
