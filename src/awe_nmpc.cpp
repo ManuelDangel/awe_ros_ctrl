@@ -36,6 +36,7 @@ FwNMPC::FwNMPC()
    &FwNMPC::aslctrlDebugCb, this); */
 
   /* publishers */
+  path_pub_ = nmpc_.advertise<nav_msgs::Path>("nmpc_predicted", 1);
   /*  obctrl_pub_ = nmpc_.advertise<mavros_msgs::AslObCtrl>("/nmpc/asl_obctrl", 10,
    true); */
   /*  nmpc_info_pub_ = nmpc_.advertise<fw_ctrl::NmpcInfo>("/nmpc/info", 10, true); */
@@ -65,19 +66,18 @@ FwNMPC::FwNMPC()
   p_index.weight_tracking = 9;
   p_index.weight_power = 10;
 
-
   // Initialize NMPC Parameters //
-  parameter[p_index.vw] = 10;
-  parameter[p_index.r] = 220;
-  parameter[p_index.r_dot] = 10 * 0.23;
-  parameter[p_index.circle_azimut] = 0;
+  parameter[p_index.vw] = 10.0;
+  parameter[p_index.r] = 220.0;
+  parameter[p_index.r_dot] = 10.0 * 0.23;
+  parameter[p_index.circle_azimut] = 0.0;
   parameter[p_index.circle_elevation] = 30.0 / 180 * M_PI;
-  parameter[p_index.circle_angle] = atan(75 / 220);
+  parameter[p_index.circle_angle] = atan(75.0 / 220.0);
   parameter[p_index.m] = 27.53;
   parameter[p_index.cla] = 0.9;
   parameter[p_index.cda] = 0.07;
-  parameter[p_index.weight_tracking] = 1;
-  parameter[p_index.weight_power] = 1;
+  parameter[p_index.weight_tracking] = 1.0;
+  parameter[p_index.weight_power] = 1.0;
 
   // Initialize Parameters from Launch File //
   // get loop rate
@@ -86,7 +86,6 @@ FwNMPC::FwNMPC()
   nmpc_.getParam("/nmpc/time_step", TSTEP);
   // fake signals
   nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
-
 }  // constructor
 
 
@@ -98,7 +97,8 @@ int FwNMPC::initNMPC() {
 
   // Initialize the solver.
   int RET = acado_initializeSolver();
-
+  // Initialize all nodes with a forward simulation with default (0) control input
+  acado_initializeNodesByForwardSimulation();
 
   return RET;
 }
@@ -113,8 +113,8 @@ void FwNMPC::initACADOVars() {
   double U[NU] = { 0.0, 0.0, 0.0 };
   //double OD[NOD];
   double Y[NY] = {0.0};  // Set all entries to 0
-  double W[NY] = { 100.0, 20.0, 1.0, 100.0, 1.0};
-  double WN[NY] = { 100.0, 0.0, 0.0 };
+  double W[NY] = { 100.0, 0*20.0, 1.0, 100.0, 0.01*200.0};
+  double WN[NY] = { 100.0, 0.0, 0*20.0 };
 
   // these set a constant value for each variable through the horizon //
 
@@ -157,6 +157,8 @@ void FwNMPC::initACADOVars() {
   for (int i = 0; i < NYN; ++i) {
     acadoVariables.WN[i * NYN + i] = WN[i];  // fill diagonals
   }
+  // ROS_INFO_STREAM("State set to: vt: " << acadoVariables.x[4]);
+  ROS_INFO_STREAM("State set to: Psi: " << X[0] << " Theta: " << X[1] << " gamma: " << X[2] << " psi: " << X[3] << " vt: " << X[4] << " psi_des: " << X[5]);
 }
 
 
@@ -175,38 +177,33 @@ int FwNMPC::nmpcIteration() {
   int RET[2] = { 0, 0 };
 
   // check mode //  //TODO: should include some checking to make sure not on ground/ other singularity ridden cases //TODO: this does not cover RC loss..
+  /*
   if (last_ctrl_mode != 5)
     bModeChanged = true;
   last_ctrl_mode = subs_.aslctrl_data.aslctrl_mode;
-  if (subs_.aslctrl_data.aslctrl_mode == 5) {
+  */
+  if (true) {  // subs_.aslctrl_data.aslctrl_mode == 5
 
     // start update timer --> //
     ros::Time t_update_start = ros::Time::now();
 
     int obctrl_status = 0;
 
-    if (bModeChanged) {
+    if (false) {  // bModeChanged
       // first time in loop //
 
-      // update home wp
-      // -->initHorizon needs up to date wp info for ned calculation
-      const double new_home_wp[3] = { subs_.home_wp.latitude, subs_.home_wp
-          .longitude, subs_.home_wp.altitude };
-      paths_.setHomeWp(new_home_wp);
-      last_wp_idx_ = -1;
-
       // initHorizon BEFORE Y, this is to make sure controls and prev_horiz are reinitialized before reaching Y update.
-      initHorizon();
-      updateACADO_Y();
+      // initHorizon();
+      // updateACADO_Y();  // not needed for awe_nmpc
       updateACADO_W();
 
       bModeChanged = false;
     } else {
-      //regular update
+      // regular update
 
       // update ACADO states/references/weights //
       updateACADO_X0();  // note this shifts augmented states
-      updateACADO_Y();
+      // updateACADO_Y();  // not needed for awe_nmpc
       updateACADO_W();
     }
 
@@ -220,12 +217,14 @@ int FwNMPC::nmpcIteration() {
     // start nmpc solve timer --> //
     ros::Time t_solve_start = ros::Time::now();
 
+    // ROS_INFO_STREAM("State before preparation: vt: " << acadoVariables.x[4]);
     // Prepare first step //
     RET[0] = acado_preparationStep();
     if (RET[0] != 0) {
       ROS_ERROR("nmpcIteration: preparation step error, code %d", RET[0]);
       obctrl_status = RET[0];
     }
+    // ROS_INFO_STREAM("State before feedback: vt: " << acadoVariables.x[4]);
 
     // Perform the feedback step. //
     RET[1] = acado_feedbackStep();
@@ -233,6 +232,7 @@ int FwNMPC::nmpcIteration() {
       ROS_ERROR("nmpcIteration: feedback step error, code %d", RET[1]);
       obctrl_status = RET[1];  //TODO: find a way that doesnt overwrite the other one...
     }
+    // ROS_INFO_STREAM("State after feedback: vt: " << acadoVariables.x[4]);
 
     // solve time in us <-- //
     t_elapsed = ros::Time::now() - t_solve_start;
@@ -241,6 +241,7 @@ int FwNMPC::nmpcIteration() {
     // nmpc iteration time in us (approximate for publishing to pixhawk) <-- //
     t_elapsed = ros::Time::now() - t_iter_start;
     uint64_t t_iter_approx = t_elapsed.toNSec() / 1000;
+    ROS_INFO_STREAM("NMPC Step completed took: " << t_iter_approx*0.001 << " ms");
 
     // publish control action //
     publishControls();
@@ -248,7 +249,7 @@ int FwNMPC::nmpcIteration() {
     //TODO: this should be interpolated in the event of Tnmpc ~= Tfcall //TODO: should this be before the feedback step?
     // Optional: shift the initialization (look in acado_common.h). //
     acado_shiftStates(2, 0, 0);
-    acado_shiftControls( 0 );
+    acado_shiftControls(0);
   } else {
     // send "alive" status
     publishControls();  // zero control input
@@ -261,11 +262,127 @@ int FwNMPC::nmpcIteration() {
   // publishNmpcInfo(t_iter_start, t_ctrl, t_solve, t_update, t_wp_man);
 
   // return status //
-  return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;  //perhaps a better reporting method?
+  return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;  // perhaps a better reporting method?
+}
+
+
+void FwNMPC::updateACADO_X0() {
+
+  double X0[NX] = { parameter[p_index.circle_azimut],
+      parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
+      -0.5*M_PI, 0.0, 50.0, 0.0 };
+  // internal horizon propagation:
+  for (int i = 0; i < NX; ++i) {
+    X0[i] = acadoVariables.x[i+NX];
+  }
+
+  /*
+  paths_.ll2NE(X0[0], X0[1], (double) subs_.glob_pos.latitude,
+               (double) subs_.glob_pos.longitude);        // n, e
+  X0[2] = -((double) subs_.glob_pos.altitude - paths_.getHomeAlt());        // d
+  X0[3] = (double) subs_.ekf_ext.airspeed;                                  // V
+  X0[4] = -asin(
+      (double) ((subs_.odom.twist.twist.linear.z - subs_.ekf_ext.windZ)
+          / ((subs_.ekf_ext.airspeed < 1.0) ? 1.0 : subs_.ekf_ext.airspeed)));  // gamma
+  X0[5] = (double) subs_.aslctrl_data.yawAngle;  // NOTE: this is actually xi, just using the message as vessel
+  X0[6] = (double) subs_.aslctrl_data.rollAngle;                          // phi
+  X0[7] = (double) subs_.aslctrl_data.pitchAngle;                       // theta
+  X0[8] = (double) subs_.aslctrl_data.p;                                  // p
+  X0[9] = (double) subs_.aslctrl_data.q;                                  // q
+  X0[10] = (double) subs_.aslctrl_data.r;                                   // r
+  if (FAKE_SIGNALS == 1) {
+    // no shifting internal states when faking signals
+    X0[11] = acadoVariables.x[11];
+    X0[12] = acadoVariables.x[12];
+  } else {
+    // NOTE: yes.. this is shifting the state. Only for these internal states, however.--linear interpolation
+    X0[11] = acadoVariables.x[11]
+        + (acadoVariables.x[NX + 11] - acadoVariables.x[11]) / getLoopRate()
+            / getTimeStep();  // NEXT throt state in horizon.
+    X0[12] = acadoVariables.x[12]
+        + (acadoVariables.x[NX + 12] - acadoVariables.x[12]) / getLoopRate()
+            / getTimeStep();  // NEXT xsw state in horizon.
+  }
+  */
+  for (int i = 0; i < NX; ++i) {
+    acadoVariables.x0[i] = X0[i];
+  }
+}
+
+
+void FwNMPC::updateACADO_OD() {
+  // update online data //
+  /*
+  double OD[NOD];
+  OD[0] = paths_.path_current.pparam1;
+  OD[1] = paths_.path_current.pparam2;
+  OD[2] = paths_.path_current.pparam3;
+  OD[3] = paths_.path_current.pparam4;
+  OD[4] = paths_.path_current.pparam5;
+  OD[5] = paths_.path_current.pparam6;
+  OD[6] = paths_.path_current.pparam7;
+  OD[7] = paths_.path_next.pparam1;
+  OD[8] = paths_.path_next.pparam2;
+  OD[9] = paths_.path_next.pparam3;
+  OD[10] = paths_.path_next.pparam4;
+  OD[11] = paths_.path_next.pparam5;
+
+  for (int i = 0; i < N + 1; ++i) {
+    for (int j = 0; j < NOD; ++j) {
+      acadoVariables.od[i * NOD + j] = OD[j];
+    }
+  }
+  */
+}
+
+
+void FwNMPC::updateACADO_W() {
+  // update objective gains //
+  /*
+  double W[NY];
+  for (int i = 0; i < NY; i++)
+    W[i] = (double) subs_.nmpc_params.Qdiag[i];
+
+  // only update diagonal terms
+  for (int i = 0; i < NY; ++i) {
+    acadoVariables.W[i * NY + i] = W[i];  // fill diagonals
+  }
+
+  for (int i = 0; i < NYN; ++i) {
+    acadoVariables.WN[i * NYN + i] = W[i];
+  }
+  */
 }
 
 
 void FwNMPC::publishControls() {
+  double ctrl[NU];
+  for (int i = 0; i < NU; ++i)
+    ctrl[i] = acadoVariables.u[i];
+
+  ROS_INFO_STREAM("Control_Publish: vt at 0: " << acadoVariables.x[4] << " vt at 10: " << acadoVariables.x[4+6*10]);
+  ROS_INFO_STREAM("Control_Publish: rr at 0: " << ctrl[0]);
+
+  double kkt = (double) acado_getKKT();
+  double obj = (double) acado_getObjective();
+  ROS_INFO("KKT: %f Obj: %f, ", kkt, obj);
+
+
+  path_predicted_.header.frame_id = "map";
+  path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N);
+
+  for (int i = 0; i < N; i++) {
+    double psi = acadoVariables.x[x_index.psi+NX*i];
+    double theta = acadoVariables.x[x_index.theta+NX*i];
+    double r = acadoVariables.od[p_index.r+NOD*i];
+    path_predicted_.poses[i].pose.position.x = r*cos(psi)*cos(theta);
+    path_predicted_.poses[i].pose.position.y = r*sin(psi)*cos(theta);
+    path_predicted_.poses[i].pose.position.z = r*sin(theta);
+    path_predicted_.poses[i].pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
+  }
+  path_pub_.publish(path_predicted_);
+
+
   /*
   double ctrl[NU];
   for (int i = 0; i < NU; ++i)
@@ -348,11 +465,11 @@ int main(int argc, char **argv) {
     ros::spinOnce();
 
     // nmpc iteration step //
-    //ret = nmpc.nmpcIteration();
-    ROS_INFO("Looping");
+    ret = nmpc.nmpcIteration();
+    // ROS_INFO("Looping");
     if (ret != 0) {
       ROS_ERROR("nmpc_iteration: error in qpOASES QP solver.");
-    return 1;
+      // return 1;
     }
 
     // sleep //

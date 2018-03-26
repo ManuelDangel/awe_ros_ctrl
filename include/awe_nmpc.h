@@ -5,6 +5,7 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <ros/console.h>
+#include <tf/tf.h>
 
 #include <std_msgs/Header.h>
 #include <std_msgs/String.h>
@@ -12,6 +13,7 @@
 #include <std_msgs/UInt64.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <nav_msgs/Path.h>
 
 // general includes
 #include "math.h"
@@ -79,10 +81,10 @@ class FwNMPC {
   void initACADOVars();
   //void initHorizon();
   /* sets */
-  //void updateACADO_X0();
-  //void updateACADO_OD();
-  //void updateACADO_Y();
-  //void updateACADO_W();
+  void updateACADO_X0();
+  void updateACADO_OD();
+  // void updateACADO_Y();  // Not necessary for AWE_NMPC
+  void updateACADO_W();
   /* gets */
   double getLoopRate();
   double getTimeStep();
@@ -126,6 +128,8 @@ class FwNMPC {
   //ros::Subscriber home_wp_sub_;
   // ros::Subscriber aslctrl_debug_sub_;
   /* publishers */
+  ros::Publisher path_pub_;
+  nav_msgs::Path path_predicted_;
   // ros::Publisher obctrl_pub_;
   // ros::Publisher nmpc_info_pub_;
   // ros::Publisher acado_vars_pub_;
