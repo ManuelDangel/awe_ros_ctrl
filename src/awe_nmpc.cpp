@@ -5,7 +5,7 @@
 namespace fw_nmpc {
 
 FwNMPC::FwNMPC()
-    : LOOP_RATE(20.0),  // MAGIC NUMBER
+    : LOOP_RATE(10.0),  // MAGIC NUMBER
       TSTEP(0.1),  // MAGIC NUMBER
       FAKE_SIGNALS(0),
       t_lastctrl { ros::Time::now() },
@@ -368,7 +368,7 @@ void FwNMPC::publishControls() {
   ROS_INFO("KKT: %f Obj: %f, ", kkt, obj);
 
 
-  path_predicted_.header.frame_id = "map";
+  path_predicted_.header.frame_id = "world";
   path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N);
 
   for (int i = 0; i < N; i++) {
