@@ -16,6 +16,10 @@ FwNMPC::FwNMPC()
       last_yaw_msg_(0.0f) {
   ROS_INFO("Instance of NMPC created");
   /* subscribers */
+  position_sub_ = nmpc_.subscribe("/mavros/local_position/pose", 1,
+                                  &FwNMPC::positionCb, this);
+  velocity_sub_ = nmpc_.subscribe("/mavros/local_position/velocity", 1,
+                                  &FwNMPC::velocityCb, this);
   /*  aslctrl_data_sub_ = nmpc_.subscribe("/mavros/aslctrl/data", 1,
    &FwNMPC::aslctrlDataCb, this); */
   /*  glob_pos_sub_ = nmpc_.subscribe("/mavros/global_position/global", 1,
@@ -70,7 +74,7 @@ FwNMPC::FwNMPC()
   parameter[p_index.vw] = 10.0;
   parameter[p_index.r] = 220.0;
   parameter[p_index.r_dot] = 10.0 * 0.23;
-  parameter[p_index.circle_azimut] = 0.0;
+  parameter[p_index.circle_azimut] = 1;
   parameter[p_index.circle_elevation] = 30.0 / 180 * M_PI;
   parameter[p_index.circle_angle] = atan(75.0 / 220.0);
   parameter[p_index.m] = 27.53;
@@ -86,6 +90,11 @@ FwNMPC::FwNMPC()
   nmpc_.getParam("/nmpc/time_step", TSTEP);
   // fake signals
   nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
+
+  // Initialize State
+  /*current_state = { parameter[p_index.circle_azimut],
+        parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
+        -0.5*M_PI, 0.0, 50.0, 0.0 };*/
 }  // constructor
 
 
@@ -267,10 +276,10 @@ int FwNMPC::nmpcIteration() {
 
 
 void FwNMPC::updateACADO_X0() {
-
-  double X0[NX] = { parameter[p_index.circle_azimut],
+  double X0[NX] = { parameter[p_index.circle_elevation],
       parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
       -0.5*M_PI, 0.0, 50.0, 0.0 };
+
   // internal horizon propagation:
   for (int i = 0; i < NX; ++i) {
     X0[i] = acadoVariables.x[i+NX];
@@ -372,44 +381,58 @@ void FwNMPC::publishControls() {
   path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N);
 
   for (int i = 0; i < N; i++) {
-    double psi = acadoVariables.x[x_index.psi+NX*i];
-    double theta = acadoVariables.x[x_index.theta+NX*i];
-    double r = acadoVariables.od[p_index.r+NOD*i];
+    // Calculate Planned Aircraft Positions
+    const double & psi = acadoVariables.x[x_index.psi+NX*i];
+    const double & theta = acadoVariables.x[x_index.theta+NX*i];
+    const double & r = acadoVariables.od[p_index.r+NOD*i];
     path_predicted_.poses[i].pose.position.x = r*cos(psi)*cos(theta);
     path_predicted_.poses[i].pose.position.y = r*sin(psi)*cos(theta);
     path_predicted_.poses[i].pose.position.z = r*sin(theta);
-    path_predicted_.poses[i].pose.orientation = tf::createQuaternionMsgFromYaw(0.0);
+    // Calculate Planned Aircraft Attitudes
+    const double & gamma = acadoVariables.x[x_index.gamma+NX*i];
+    const double & vt = acadoVariables.x[x_index.vt+NX*i];
+    const double & phi = acadoVariables.x[x_index.phi+NX*i];
+    const double & r_dot = acadoVariables.od[p_index.r_dot+NOD*i];
+    tf::Matrix3x3 enu2local_rot(  // Transformation Matrix
+          -sin(theta)*cos(psi)*cos(gamma)-sin(psi)*sin(gamma),
+           sin(theta)*cos(psi)*sin(gamma)-sin(psi)*cos(gamma),
+          -cos(theta)*cos(psi),
+          -sin(theta)*sin(psi)*cos(gamma)+cos(psi)*sin(gamma),
+           sin(theta)*sin(psi)*sin(gamma)+cos(psi)*cos(gamma),
+          -cos(theta)*sin(psi),
+           cos(theta)*cos(gamma),
+          -cos(theta)*sin(gamma),
+          -sin(theta));
+    tf::Vector3 wind_enu(acadoVariables.od[p_index.vw+NOD*i], 0.0, 0.0);
+    tf::Vector3 wind_local;
+    wind_local = enu2local_rot.inverse() * wind_enu;  // Tf wind to local
+    tf::Vector3 groundspeed_local(vt, 0, -r_dot);
+    tf::Vector3 airspeed_local;
+    airspeed_local = groundspeed_local - wind_local;
+    double airspeed_abs = sqrt(pow(airspeed_local.x(), 2)+
+                               pow(airspeed_local.y(), 2)+
+                               pow(airspeed_local.z(), 2));
+    tf::Matrix3x3 attitude_local;
+    if (i%2==0) {
+      attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
+                                     -asin(airspeed_local.z()/airspeed_abs),
+                                     phi);
+    } else {
+      attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
+                                     -asin(airspeed_local.z()/airspeed_abs),
+                                     0);
+    }
+
+    tf::Matrix3x3 attitude_enu;
+    attitude_enu = enu2local_rot * attitude_local;
+    tf::Quaternion attitude_quat_enu;
+    attitude_enu.getRotation(attitude_quat_enu);
+    geometry_msgs::Quaternion attitude_quat_msg;
+    tf::quaternionTFToMsg(attitude_quat_enu, attitude_quat_msg);
+    path_predicted_.poses[i].pose.orientation = attitude_quat_msg;
   }
   path_pub_.publish(path_predicted_);
 
-
-  /*
-  double ctrl[NU];
-  for (int i = 0; i < NU; ++i)
-    ctrl[i] = acadoVariables.u[i];
-
-  // saturate controls for internal model constraints //
-  for (int i = 0; i < NU; ++i) {
-    if (ctrl[i] < CTRL_SATURATION[i][0])
-      ctrl[i] = CTRL_SATURATION[i][0];
-    if (ctrl[i] > CTRL_SATURATION[i][1])
-      ctrl[i] = CTRL_SATURATION[i][1];
-  }
-
-  // publish obctrl msg //
-  mavros_msgs::AslObCtrl obctrl_msg;
-  obctrl_msg.timestamp = t_iter_approx;
-  obctrl_msg.uThrot = (isnan((float) ctrl[0])) ? 0.0f : (float) ctrl[0];
-  obctrl_msg.uThrot2 = (float) track_error_lon_;  // for monitoring on QGC
-  obctrl_msg.uAilR = (isnan((float) ctrl[1])) ? 0.0f : (float) ctrl[1];
-  obctrl_msg.uAilL = (float) track_error_lat_;  // for monitoring on QGC
-  obctrl_msg.uElev = (isnan((float) ctrl[2])) ? 0.0f : (float) ctrl[2];
-  obctrl_msg.obctrl_status =
-      (isnan((float) ctrl[0]) || isnan((float) ctrl[1])
-          || isnan((float) ctrl[2])) ? 11 : (uint8_t) obctrl_status;  // status=11 for nan detection
-
-  obctrl_pub_.publish(obctrl_msg);
-  */
 
   // update last control timestamp / publish elapsed ctrl loop time //
   ros::Duration t_elapsed = ros::Time::now() - t_lastctrl;
@@ -417,6 +440,86 @@ void FwNMPC::publishControls() {
   t_lastctrl = ros::Time::now();
 }
 
+
+void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+  /*X0[NX] = { parameter[p_index.circle_azimut],
+        parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
+        -0.5*M_PI, 0.0, 50.0, 0.0 };*/
+  // NED to ENU (East.North-Up)
+  const double & x = msg->pose.position.y;
+  const double & y = msg->pose.position.x;
+  const double & z = -(msg->pose.position.z);
+  double r = sqrt(x*x+y*y+z*z);
+
+  double psi = atan2(y, x);   // set Azimut Angle
+  double theta = acos(z/r);  // set Elevation Angle
+
+  current_state[x_index.psi] = psi;
+  current_state[x_index.theta] = theta;
+
+  tf::Transform ned2enu_transform;  // NED to ENU (East.North-Up)
+  ned2enu_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  ned2enu_transform.setBasis(tf::Matrix3x3(0.0, 1.0, 0.0,
+                                           1.0, 0.0, 0.0,
+                                           0.0, 0.0, -1.0));
+  // ned2enu_transform.
+
+  tf::Transform enu2azimut_transform;  // Turn towards proper Azimut
+  enu2azimut_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  enu2azimut_transform.setBasis(tf::Matrix3x3(
+      cos(psi), -sin(psi), 0.0,
+      sin(psi), cos(psi), 0.0,
+      0.0, 0.0, 1.0));
+  tf::Transform azimut2elevation_transform;  // Turn towards proper Elevation
+  azimut2elevation_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  azimut2elevation_transform.setBasis(tf::Matrix3x3(
+      cos(-theta), 0.0, sin(-theta),
+      0.0, 1.0, 0.0,
+      -sin(-theta), 0.0, cos(-theta)));
+  tf::Transform elevation2sphere_transform;
+  // Move out to sphere and flip such that z axis points to center and x to pole
+  elevation2sphere_transform.setOrigin(tf::Vector3(r, 0.0, 0.0));
+  elevation2sphere_transform.setBasis(tf::Matrix3x3(
+      0.0, 0.0, -1.0,
+      0.0, 1.0, 0.0,
+      1.0, 0.0, 0.0));
+  tf::Transform sphere2heading_transform;  // Turn towards proper Azimut
+  sphere2heading_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+  sphere2heading_transform.setBasis(tf::Matrix3x3(
+      cos(psi), -sin(psi), 0.0,
+      sin(psi), cos(psi), 0.0,
+      0.0, 0.0, 1.0));
+
+
+
+
+
+    // TODO(Manuel): ADD WRAPPING!!!
+}
+
+void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
+  const double & vx = msg->twist.linear.x;
+  const double & vy = msg->twist.linear.y;
+  const double & vz = msg->twist.linear.z;
+  tf::Vector3 velocity_ned(vx, vy, vz);
+  const double & psi = current_state[x_index.psi];
+  const double & theta = current_state[x_index.theta];
+  tf::Matrix3x3 ned2enu_rot(0.0, 1.0, 0.0,
+                            1.0, 0.0, 0.0,
+                            0.0, 0.0, -1.0);
+  tf::Matrix3x3 enu2sphere_rot(
+      -sin(theta)*cos(psi), -sin(psi), -cos(theta)*cos(psi),
+      -sin(theta)*cos(psi), cos(psi), -cos(theta)*cos(psi),
+      cos(theta), 0.0, -sin(theta));
+  tf::Vector3 velocity_sphere;
+  velocity_sphere = enu2sphere_rot.inverse() * ned2enu_rot.inverse() * velocity_ned;
+  double gamma = atan2(velocity_sphere.getY(), velocity_sphere.getX());  // set Heading Angle
+  current_state[x_index.gamma] = gamma;
+  double vt = sqrt(pow(velocity_sphere.getX(), 2) + pow(velocity_sphere.getY(), 2));
+  current_state[x_index.vt] = vt;
+
+  // TODO(Manuel): ADD WRAPPING!!!
+}
 
 
 double FwNMPC::getLoopRate() {

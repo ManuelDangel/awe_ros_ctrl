@@ -18,10 +18,6 @@
 // general includes
 #include "math.h"
 
-// INCLUDES for ...
-#include "subs.h"
-// #include "path_manager.h"
-
 // INCLUDES for ACADO
 #include "acado_common.h"
 #include "acado_auxiliary_functions.h"
@@ -67,6 +63,8 @@ class FwNMPC {
   FwNMPC();
 
   /* callbacks */
+  void positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg);
+  void velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg);
   // void aslctrlDataCb(const mavros_msgs::AslCtrlData::ConstPtr& msg);
   //void globPosCb(const sensor_msgs::NavSatFix::ConstPtr& msg);
   //void odomCb(const nav_msgs::Odometry::ConstPtr& msg);
@@ -102,11 +100,8 @@ class FwNMPC {
   double LOOP_RATE;
   double TSTEP;
   int FAKE_SIGNALS;
+
  private:
-
-  /* subscription data */
-  Subscriptions subs_;
-
   /* node handles */
   ros::NodeHandle nmpc_;
 
@@ -116,17 +111,12 @@ class FwNMPC {
   Pindex p_index;
   // NMPC Parameter
   double parameter[NOD];
+  // state
+  double current_state[NX];
 
   /* subscribers */
-  // ros::Subscriber aslctrl_data_sub_;
-  //ros::Subscriber glob_pos_sub_;
-  //ros::Subscriber odom_sub_;
-  // ros::Subscriber ekf_ext_sub_;
-  // ros::Subscriber nmpc_params_sub_;
-  //ros::Subscriber waypoint_list_sub_;
-  //ros::Subscriber current_wp_sub_;
-  //ros::Subscriber home_wp_sub_;
-  // ros::Subscriber aslctrl_debug_sub_;
+  ros::Subscriber position_sub_;
+  ros::Subscriber velocity_sub_;
   /* publishers */
   ros::Publisher path_pub_;
   nav_msgs::Path path_predicted_;
