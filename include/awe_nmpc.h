@@ -100,6 +100,7 @@ class FwNMPC {
   double LOOP_RATE;
   double TSTEP;
   int FAKE_SIGNALS;
+  int loop_counter;
 
  private:
   /* node handles */

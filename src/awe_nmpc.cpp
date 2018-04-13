@@ -13,7 +13,8 @@ FwNMPC::FwNMPC()
       last_ctrl_mode(0),
       obctrl_en_(0),
       bYawReceived(false),
-      last_yaw_msg_(0.0f) {
+      last_yaw_msg_(0.0f)
+      loop_counter (0){
   ROS_INFO("Instance of NMPC created");
   /* subscribers */
   position_sub_ = nmpc_.subscribe("/mavros/local_position/pose", 1,
@@ -70,18 +71,18 @@ FwNMPC::FwNMPC()
   p_index.weight_tracking = 9;
   p_index.weight_power = 10;
 
-  // Initialize NMPC Parameters //
-  parameter[p_index.vw] = 10.0;
-  parameter[p_index.r] = 220.0;
-  parameter[p_index.r_dot] = 10.0 * 0.23;
-  parameter[p_index.circle_azimut] = 1;
-  parameter[p_index.circle_elevation] = 30.0 / 180 * M_PI;
-  parameter[p_index.circle_angle] = atan(75.0 / 220.0);
-  parameter[p_index.m] = 27.53;
-  parameter[p_index.cla] = 0.9;
-  parameter[p_index.cda] = 0.07;
-  parameter[p_index.weight_tracking] = 1.0;
-  parameter[p_index.weight_power] = 1.0;
+  // Initialize NMPC Parameters from launch file //
+  nmpc_.param<double>("/nmpc/param_vw", parameter[p_index.vw], 10.0);
+  nmpc_.param<double>("/nmpc/param_r", parameter[p_index.r], 220.0);
+  nmpc_.param<double>("/nmpc/param_r_dot", parameter[p_index.r_dot], 10.0*0.23);
+  nmpc_.param<double>("/nmpc/param_circle_azimut", parameter[p_index.circle_azimut], 0.0);
+  nmpc_.param<double>("/nmpc/param_circle_elevation", parameter[p_index.circle_elevation], 30.0 / 180 * M_PI);
+  nmpc_.param<double>("/nmpc/param_circle_angle", parameter[p_index.circle_angle], atan(75.0 / 220.0));
+  nmpc_.param<double>("/nmpc/param_m", parameter[p_index.m], 27.53);
+  nmpc_.param<double>("/nmpc/param_cla", parameter[p_index.cla], 0.9);
+  nmpc_.param<double>("/nmpc/param_cda", parameter[p_index.cda], 0.07);
+  nmpc_.param<double>("/nmpc/param_weight_tracking", parameter[p_index.weight_tracking], 1.0);
+  nmpc_.param<double>("/nmpc/param_weight_power", parameter[p_index.weight_power], 1.0);
 
   // Initialize Parameters from Launch File //
   // get loop rate
@@ -99,7 +100,6 @@ FwNMPC::FwNMPC()
 
 
 int FwNMPC::initNMPC() {
-  // std::cout << LOOP_RATE;
   // Initialize ACADO variables
   initACADOVars();
   ROS_INFO("initNMPC: ACADO variables initialized");
@@ -152,12 +152,6 @@ void FwNMPC::initACADOVars() {
   }
   // weights
   memset(acadoVariables.W, 0, sizeof(acadoVariables.W));  // fill all with zero
-  /*for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < NY; ++j) {
-      acadoVariables.W[ NY * NY * i + NY * j + j] = W[j];  // fill diagonals
-      std::cout << "loop i " << i << " j " << j << std::endl;
-    }
-  }*/
   for (int i = 0; i < NY; ++i) {
     acadoVariables.W[i * NY + i] = W[i];  // fill diagonals
   }
@@ -563,6 +557,7 @@ int main(int argc, char **argv) {
   ros::Rate nmpc_rate(loop_rate);
   ROS_INFO("awe_nmpc: entering NMPC loop");
   while (ros::ok()) {
+    ++nmpc.loop_counter;
 
     // empty callback queues //
     ros::spinOnce();
