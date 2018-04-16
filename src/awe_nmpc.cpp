@@ -13,40 +13,19 @@ FwNMPC::FwNMPC()
       last_ctrl_mode(0),
       obctrl_en_(0),
       bYawReceived(false),
-      last_yaw_msg_(0.0f)
-      loop_counter (0){
+      last_yaw_msg_(0.0f),
+      loop_counter(0) {
   ROS_INFO("Instance of NMPC created");
   /* subscribers */
   position_sub_ = nmpc_.subscribe("/mavros/local_position/pose", 1,
                                   &FwNMPC::positionCb, this);
   velocity_sub_ = nmpc_.subscribe("/mavros/local_position/velocity", 1,
                                   &FwNMPC::velocityCb, this);
-  /*  aslctrl_data_sub_ = nmpc_.subscribe("/mavros/aslctrl/data", 1,
-   &FwNMPC::aslctrlDataCb, this); */
-  /*  glob_pos_sub_ = nmpc_.subscribe("/mavros/global_position/global", 1,
-   &FwNMPC::globPosCb, this); */  //TODO: switch to UTM - stop doing own ll2ne
-  /*  odom_sub_ = nmpc_.subscribe("/mavros/global_position/local", 1,
-   &FwNMPC::odomCb, this); */
-  /*  ekf_ext_sub_ = nmpc_.subscribe("/mavros/aslekf_extended", 1,
-   &FwNMPC::ekfExtCb, this); */
-  /*  nmpc_params_sub_ = nmpc_.subscribe("/mavros/nmpc_params", 1,
-   &FwNMPC::nmpcParamsCb, this); */
-  /*  waypoint_list_sub_ = nmpc_.subscribe("/mavros/mission/waypoints", 1,
-   &FwNMPC::waypointListCb, this); */
-  /*  current_wp_sub_ = nmpc_.subscribe("/mavros/mission/current_wp", 1,
-   &FwNMPC::currentWpCb, this); */
-  /*  home_wp_sub_ = nmpc_.subscribe("/mavros/home_position", 1, &FwNMPC::homeWpCb,
-   this); */
-  /*  aslctrl_debug_sub_ = nmpc_.subscribe("/mavros/aslctrl/debug", 1,
-   &FwNMPC::aslctrlDebugCb, this); */
 
   /* publishers */
-  path_pub_ = nmpc_.advertise<nav_msgs::Path>("nmpc_predicted", 1);
-  /*  obctrl_pub_ = nmpc_.advertise<mavros_msgs::AslObCtrl>("/nmpc/asl_obctrl", 10,
-   true); */
-  /*  nmpc_info_pub_ = nmpc_.advertise<fw_ctrl::NmpcInfo>("/nmpc/info", 10, true); */
-  /*  acado_vars_pub_ = nmpc_.advertise<fw_ctrl::AcadoVars>("/nmpc/acado_vars", 10,
-   true); */
+  setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/setpoint_attitude/attitude", 1);
+  path_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/nmpc_predicted", 1);
+  pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
 
   // Initialize NMPC Indexes //
 
@@ -279,34 +258,6 @@ void FwNMPC::updateACADO_X0() {
     X0[i] = acadoVariables.x[i+NX];
   }
 
-  /*
-  paths_.ll2NE(X0[0], X0[1], (double) subs_.glob_pos.latitude,
-               (double) subs_.glob_pos.longitude);        // n, e
-  X0[2] = -((double) subs_.glob_pos.altitude - paths_.getHomeAlt());        // d
-  X0[3] = (double) subs_.ekf_ext.airspeed;                                  // V
-  X0[4] = -asin(
-      (double) ((subs_.odom.twist.twist.linear.z - subs_.ekf_ext.windZ)
-          / ((subs_.ekf_ext.airspeed < 1.0) ? 1.0 : subs_.ekf_ext.airspeed)));  // gamma
-  X0[5] = (double) subs_.aslctrl_data.yawAngle;  // NOTE: this is actually xi, just using the message as vessel
-  X0[6] = (double) subs_.aslctrl_data.rollAngle;                          // phi
-  X0[7] = (double) subs_.aslctrl_data.pitchAngle;                       // theta
-  X0[8] = (double) subs_.aslctrl_data.p;                                  // p
-  X0[9] = (double) subs_.aslctrl_data.q;                                  // q
-  X0[10] = (double) subs_.aslctrl_data.r;                                   // r
-  if (FAKE_SIGNALS == 1) {
-    // no shifting internal states when faking signals
-    X0[11] = acadoVariables.x[11];
-    X0[12] = acadoVariables.x[12];
-  } else {
-    // NOTE: yes.. this is shifting the state. Only for these internal states, however.--linear interpolation
-    X0[11] = acadoVariables.x[11]
-        + (acadoVariables.x[NX + 11] - acadoVariables.x[11]) / getLoopRate()
-            / getTimeStep();  // NEXT throt state in horizon.
-    X0[12] = acadoVariables.x[12]
-        + (acadoVariables.x[NX + 12] - acadoVariables.x[12]) / getLoopRate()
-            / getTimeStep();  // NEXT xsw state in horizon.
-  }
-  */
   for (int i = 0; i < NX; ++i) {
     acadoVariables.x0[i] = X0[i];
   }
@@ -407,25 +358,29 @@ void FwNMPC::publishControls() {
                                pow(airspeed_local.y(), 2)+
                                pow(airspeed_local.z(), 2));
     tf::Matrix3x3 attitude_local;
-    if (i%2==0) {
-      attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
-                                     -asin(airspeed_local.z()/airspeed_abs),
-                                     phi);
-    } else {
-      attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
-                                     -asin(airspeed_local.z()/airspeed_abs),
-                                     0);
-    }
-
+    attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
+                               -asin(airspeed_local.z()/airspeed_abs),
+                               phi);
     tf::Matrix3x3 attitude_enu;
     attitude_enu = enu2local_rot * attitude_local;
     tf::Quaternion attitude_quat_enu;
     attitude_enu.getRotation(attitude_quat_enu);
-    geometry_msgs::Quaternion attitude_quat_msg;
-    tf::quaternionTFToMsg(attitude_quat_enu, attitude_quat_msg);
-    path_predicted_.poses[i].pose.orientation = attitude_quat_msg;
+    tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i].pose.orientation);
+    if (i==1) {  // Publish setpoint for low level control
+      setpoint_attitude_attitude_.header.frame_id = "world";
+      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i].pose.position.y;
+      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i].pose.position.x;
+      setpoint_attitude_attitude_.pose.position.z = - path_predicted_.poses[i].pose.position.z;
+      tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
+                            1.0, 0.0, 0.0,
+                            0.0, 0.0, -1.0);
+      tf::Matrix3x3 attitude_ned = ned2enu * attitude_enu;
+      tf::Quaternion attitude_quat_ned;
+      attitude_enu.getRotation(attitude_quat_ned);
+      tf::quaternionTFToMsg(attitude_quat_ned, setpoint_attitude_attitude_.pose.orientation);
+    }
   }
-  path_pub_.publish(path_predicted_);
+  path_pub_.publish(path_predicted_);  // Pubish NMPC Results
 
 
   // update last control timestamp / publish elapsed ctrl loop time //
@@ -451,6 +406,25 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   current_state[x_index.psi] = psi;
   current_state[x_index.theta] = theta;
 
+  // Publish current Pose in enu
+  aircraft_pose_.header.frame_id = "world";
+  aircraft_pose_.pose.position.x = msg->pose.position.y;
+  aircraft_pose_.pose.position.y = msg->pose.position.x;
+  aircraft_pose_.pose.position.z = -(msg->pose.position.z);
+  tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
+                        1.0, 0.0, 0.0,
+                        0.0, 0.0, -1.0);
+  tf::Quaternion orientation_quat;
+  tf::quaternionMsgToTF(msg->pose.orientation, orientation_quat);
+  tf::Matrix3x3 orientation(orientation_quat);
+  tf::Quaternion orientation_enu;
+  orientation.getRotation(orientation_enu);
+  tf::quaternionTFToMsg(orientation_enu, aircraft_pose_.pose.orientation);
+  pose_pub_.publish(aircraft_pose_);  // Pubish current aircraft pose in enu
+
+  // ROS_INFO_STREAM("Received Position Update");
+
+  /*
   tf::Transform ned2enu_transform;  // NED to ENU (East.North-Up)
   ned2enu_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
   ned2enu_transform.setBasis(tf::Matrix3x3(0.0, 1.0, 0.0,
@@ -483,10 +457,7 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
       cos(psi), -sin(psi), 0.0,
       sin(psi), cos(psi), 0.0,
       0.0, 0.0, 1.0));
-
-
-
-
+      */
 
     // TODO(Manuel): ADD WRAPPING!!!
 }

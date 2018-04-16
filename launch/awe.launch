@@ -3,7 +3,7 @@
     <param name="/nmpc/loop_rate" type="double" value="10.0" />
     <param name="/nmpc/time_step" type="double" value="0.1" />
 
-    <param name="/nmpc/param_vw" type="double" value="10.0" />
+    <param name="/nmpc/param_vw" type="double" value="5.0" />
     <param name="/nmpc/param_r" type="double" value="220.0" />
     <param name="/nmpc/param_r_dot" type="double" value="0.0" />
     <param name="/nmpc/param_circle_azimut" type="double" value="0.0" />

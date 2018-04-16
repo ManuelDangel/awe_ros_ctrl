@@ -14,6 +14,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <nav_msgs/Path.h>
+#include <geometry_msgs/PoseStamped.h>
 
 // general includes
 #include "math.h"
@@ -86,16 +87,11 @@ class FwNMPC {
   /* gets */
   double getLoopRate();
   double getTimeStep();
-  //void reqSubs();
-  //void calculateTrackError(const real_t *in);
   /* functions */
   //void update();
   int nmpcIteration();
   /* publishing encapsulation */
   void publishControls();
-  // void publishAcadoVars();
-  /*void publishNmpcInfo(ros::Time t_iter_start, uint64_t t_ctrl,
-   uint64_t t_solve, uint64_t t_update, uint64_t t_wp_man);*/
 
   double LOOP_RATE;
   double TSTEP;
@@ -119,8 +115,12 @@ class FwNMPC {
   ros::Subscriber position_sub_;
   ros::Subscriber velocity_sub_;
   /* publishers */
-  ros::Publisher path_pub_;
+  ros::Publisher setpoint_attitude_attitude_pub_;  // control
+  geometry_msgs::PoseStamped setpoint_attitude_attitude_;
+  ros::Publisher path_pub_;  // for visualization
   nav_msgs::Path path_predicted_;
+  ros::Publisher pose_pub_;  // for visualization
+  geometry_msgs::PoseStamped aircraft_pose_;
   // ros::Publisher obctrl_pub_;
   // ros::Publisher nmpc_info_pub_;
   // ros::Publisher acado_vars_pub_;
@@ -132,30 +132,9 @@ class FwNMPC {
   int last_ctrl_mode;
   int obctrl_en_;
 
-  /* path definitions */
-  // int last_wp_idx_;
-  // PathManager paths_;
-
   /* continuity */
   bool bYawReceived;
   float last_yaw_msg_;
-
-
-  /* track error */
-  // float track_error_lat_;
-  // float track_error_lon_;
-  // double T_b_lat_;
-
-  /* weight scalers */
-  // float W_scale_[NY];
-
-  /* control offsets / saturations / normalizations */  //TODO: this should probably not be hard-coded.
-  // uT, phi_ref, theta_ref
-  const double CTRL_DEADZONE[3] = { 0.2, 0.0, 0.0 };  // zero-based deadzone TODO: non-zero-based? asymmetric?
-//	const double CTRL_OFFSET[3] = {0.0, 0.0, 0.0}; // constant offset TODO: how to use?
-  const double CTRL_NORMALIZATION[3] = { 0.8, 1.0, 1.0 };  // normlization !!must not be zero!!
-  const double CTRL_SATURATION[3][2] = { { 0.0, 1.0 }, { -0.5236, 0.5236 }, {
-      -0.2618, 0.2618 } };  // these are saturations for the internal model ATM* TODO: probably should incorporate some saturation for the incoming controls as well
 
   /* node functions */
   void shutdown();
