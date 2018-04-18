@@ -48,7 +48,7 @@ struct Uindex {  // Lists the indexes of the different control inputs
 
 struct Pindex {  // Lists the indexes of the different online parameters
   int vw, r, r_dot, circle_azimut, circle_elevation, circle_angle, m,
-  cla, cda, weight_tracking, weight_power;
+  cla, cda, phi_freq, wind_azimut, weight_tracking, weight_power;
 };
 
 

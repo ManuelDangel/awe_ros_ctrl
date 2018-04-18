@@ -12,6 +12,8 @@
     <param name="/nmpc/param_m" type="double" value="27.53" />
     <param name="/nmpc/param_cla" type="double" value="0.9" />
     <param name="/nmpc/param_cld" type="double" value="0.07" />
+    <param name="/nmpc/param_phi_freq" type="double" value="2.7" />
+    <param name="/nmpc/param_wind_azimut" type="double" value="0.0" />
     <param name="/nmpc/param_weight_tracking" type="double" value="1.0" />
     <param name="/nmpc/param_weight_power" type="double" value="1.0" />
 

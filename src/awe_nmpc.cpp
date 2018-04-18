@@ -47,8 +47,10 @@ FwNMPC::FwNMPC()
   p_index.m = 6;
   p_index.cla = 7;
   p_index.cda = 8;
-  p_index.weight_tracking = 9;
-  p_index.weight_power = 10;
+  p_index.phi_freq = 9;
+  p_index.wind_azimut = 10;
+  p_index.weight_tracking = 11;
+  p_index.weight_power = 12;
 
   // Initialize NMPC Parameters from launch file //
   nmpc_.param<double>("/nmpc/param_vw", parameter[p_index.vw], 10.0);
@@ -60,6 +62,8 @@ FwNMPC::FwNMPC()
   nmpc_.param<double>("/nmpc/param_m", parameter[p_index.m], 27.53);
   nmpc_.param<double>("/nmpc/param_cla", parameter[p_index.cla], 0.9);
   nmpc_.param<double>("/nmpc/param_cda", parameter[p_index.cda], 0.07);
+  nmpc_.param<double>("/nmpc/param_phi_freq", parameter[p_index.phi_freq], 2.7);
+  nmpc_.param<double>("/nmpc/param_wind_azimut", parameter[p_index.wind_azimut], 0.0);
   nmpc_.param<double>("/nmpc/param_weight_tracking", parameter[p_index.weight_tracking], 1.0);
   nmpc_.param<double>("/nmpc/param_weight_power", parameter[p_index.weight_power], 1.0);
 
