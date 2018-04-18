@@ -72,9 +72,12 @@ FwNMPC::FwNMPC()
   nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
 
   // Initialize State
-  /*current_state = { parameter[p_index.circle_azimut],
-        parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
-        -0.5*M_PI, 0.0, 50.0, 0.0 };*/
+  current_state[0] = parameter[p_index.circle_azimut];
+  current_state[1] = parameter[p_index.circle_elevation]+parameter[p_index.circle_angle];
+  current_state[2] = -0.5*M_PI;
+  current_state[3] = 0.0;
+  current_state[4] = 50;
+  current_state[5] = 0.0;
 }  // constructor
 
 
@@ -145,6 +148,7 @@ void FwNMPC::initACADOVars() {
 
 
 int FwNMPC::nmpcIteration() {
+  ROS_INFO_STREAM("Start NMPC Iteration with State: \n Psi: " << current_state[0] << "\n Theta: " << current_state[1] << "\n gamma: " << current_state[2] << "\n psi: " << current_state[3] << "\n vt: " << current_state[4] << "\n psi_des: " << current_state[5]);
   // elapsed time reusable var //
   ros::Duration t_elapsed;
   // start nmpc iteration timer --> //
@@ -254,39 +258,31 @@ void FwNMPC::updateACADO_X0() {
       -0.5*M_PI, 0.0, 50.0, 0.0 };
 
   // internal horizon propagation:
+  /*
   for (int i = 0; i < NX; ++i) {
     X0[i] = acadoVariables.x[i+NX];
   }
+  */
+  // internal horizon propagation of roll states
+  current_state[x_index.phi] = acadoVariables.x[x_index.phi+NX];
+  current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des+NX];
 
   for (int i = 0; i < NX; ++i) {
-    acadoVariables.x0[i] = X0[i];
+    acadoVariables.x0[i] = current_state[i];  // X0[i];
   }
 }
 
 
 void FwNMPC::updateACADO_OD() {
-  // update online data //
-  /*
-  double OD[NOD];
-  OD[0] = paths_.path_current.pparam1;
-  OD[1] = paths_.path_current.pparam2;
-  OD[2] = paths_.path_current.pparam3;
-  OD[3] = paths_.path_current.pparam4;
-  OD[4] = paths_.path_current.pparam5;
-  OD[5] = paths_.path_current.pparam6;
-  OD[6] = paths_.path_current.pparam7;
-  OD[7] = paths_.path_next.pparam1;
-  OD[8] = paths_.path_next.pparam2;
-  OD[9] = paths_.path_next.pparam3;
-  OD[10] = paths_.path_next.pparam4;
-  OD[11] = paths_.path_next.pparam5;
-
+  // update online data
   for (int i = 0; i < N + 1; ++i) {
-    for (int j = 0; j < NOD; ++j) {
-      acadoVariables.od[i * NOD + j] = OD[j];
-    }
+    for (int j = 0; j < NOD; ++j)
+      if (j==p_index.r) {
+        acadoVariables.od[i * NOD + j] = parameter[j]+parameter[p_index.r_dot]*j*TSTEP;
+      } else {
+        acadoVariables.od[i * NOD + j] = parameter[j];
+      }
   }
-  */
 }
 
 
@@ -350,7 +346,7 @@ void FwNMPC::publishControls() {
           -sin(theta));
     tf::Vector3 wind_enu(acadoVariables.od[p_index.vw+NOD*i], 0.0, 0.0);
     tf::Vector3 wind_local;
-    wind_local = enu2local_rot.inverse() * wind_enu;  // Tf wind to local
+    wind_local = enu2local_rot.transpose() * wind_enu;  // Tf wind to local
     tf::Vector3 groundspeed_local(vt, 0, -r_dot);
     tf::Vector3 airspeed_local;
     airspeed_local = groundspeed_local - wind_local;
@@ -395,19 +391,34 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
         parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
         -0.5*M_PI, 0.0, 50.0, 0.0 };*/
   // NED to ENU (East.North-Up)
-  const double & x = msg->pose.position.y;
-  const double & y = msg->pose.position.x;
-  const double & z = -(msg->pose.position.z);
+  // IT SEEMS THAT PX4 ALREADY GIVES US ENU??
+  const double & x = msg->pose.position.x;
+  const double & y = msg->pose.position.y;
+  const double & z = (msg->pose.position.z);
   double r = sqrt(x*x+y*y+z*z);
 
   double psi = atan2(y, x);   // set Azimut Angle
-  double theta = acos(z/r);  // set Elevation Angle
+  double theta = asin(z/r);  // set Elevation Angle
 
+  // Wrapping of Horizon for psi
+  if (psi > current_state[x_index.psi] + M_PI) {
+    for (int i = 0; i < N + 1; ++i) {
+      acadoVariables.x[i * NX + x_index.psi] += 2*M_PI;
+    }
+  } else if (psi < current_state[x_index.psi] - M_PI) {
+    for (int i = 0; i < N + 1; ++i) {
+      acadoVariables.x[i * NX + x_index.psi] -= 2*M_PI;
+    }
+  }
   current_state[x_index.psi] = psi;
   current_state[x_index.theta] = theta;
+  parameter[p_index.r] = r;
+
 
   // Publish current Pose in enu
   aircraft_pose_.header.frame_id = "world";
+  // IT SEEMS THAT PX4 ALREADY GIVES US ENU??
+  /*
   aircraft_pose_.pose.position.x = msg->pose.position.y;
   aircraft_pose_.pose.position.y = msg->pose.position.x;
   aircraft_pose_.pose.position.z = -(msg->pose.position.z);
@@ -420,6 +431,8 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   tf::Quaternion orientation_enu;
   orientation.getRotation(orientation_enu);
   tf::quaternionTFToMsg(orientation_enu, aircraft_pose_.pose.orientation);
+  */
+  aircraft_pose_.pose = msg->pose;
   pose_pub_.publish(aircraft_pose_);  // Pubish current aircraft pose in enu
 
   // ROS_INFO_STREAM("Received Position Update");
@@ -469,21 +482,38 @@ void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   tf::Vector3 velocity_ned(vx, vy, vz);
   const double & psi = current_state[x_index.psi];
   const double & theta = current_state[x_index.theta];
+  /*
   tf::Matrix3x3 ned2enu_rot(0.0, 1.0, 0.0,
                             1.0, 0.0, 0.0,
                             0.0, 0.0, -1.0);
+                            */
   tf::Matrix3x3 enu2sphere_rot(
       -sin(theta)*cos(psi), -sin(psi), -cos(theta)*cos(psi),
-      -sin(theta)*cos(psi), cos(psi), -cos(theta)*cos(psi),
+      -sin(theta)*cos(psi), cos(psi), -cos(theta)*sin(psi),
       cos(theta), 0.0, -sin(theta));
   tf::Vector3 velocity_sphere;
-  velocity_sphere = enu2sphere_rot.inverse() * ned2enu_rot.inverse() * velocity_ned;
-  double gamma = atan2(velocity_sphere.getY(), velocity_sphere.getX());  // set Heading Angle
+  velocity_sphere = enu2sphere_rot.transpose() * velocity_ned;
+  /*double gamma = atan2(velocity_sphere.getY(), velocity_sphere.getX());  // set Heading Angle
+  if (gamma > current_state[x_index.gamma] + )
   current_state[x_index.gamma] = gamma;
   double vt = sqrt(pow(velocity_sphere.getX(), 2) + pow(velocity_sphere.getY(), 2));
-  current_state[x_index.vt] = vt;
+  current_state[x_index.vt] = vt;*/
+  double gamma = atan2(velocity_sphere.y(), velocity_sphere.x());  // calc Heading Angle
+  // Wrapping of Horizon
+  if (gamma > current_state[x_index.gamma] + M_PI) {
+    for (int i = 0; i < N + 1; ++i) {
+      acadoVariables.x[i * NX + x_index.gamma] += 2*M_PI;
+    }
+  } else if (gamma < current_state[x_index.gamma] - M_PI) {
+    for (int i = 0; i < N + 1; ++i) {
+      acadoVariables.x[i * NX + x_index.gamma] -= 2*M_PI;
+    }
+  }
+  current_state[x_index.gamma] = gamma;  // set Heading Angle
 
-  // TODO(Manuel): ADD WRAPPING!!!
+  double vt = std::sqrt(std::pow(velocity_sphere.x(), 2)+std::pow(velocity_sphere.y(), 2));
+  ROS_INFO_STREAM("Set Velocity State: vx " <<  vx << " vy " << vy << " vx_sphere " << velocity_sphere.x() << " vy_sphere " << velocity_sphere.y());
+  current_state[x_index.vt] = std::max(vt,5.0);  // set sphere velocity with lower bound
 }
 
 
