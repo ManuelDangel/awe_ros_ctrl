@@ -92,6 +92,7 @@ class FwNMPC {
   int nmpcIteration();
   /* publishing encapsulation */
   void publishControls();
+  void publishReference();
 
   double LOOP_RATE;
   double TSTEP;
@@ -110,6 +111,7 @@ class FwNMPC {
   double parameter[NOD];
   // state
   double current_state[NX];
+  double current_radius;
 
   /* subscribers */
   ros::Subscriber position_sub_;
@@ -121,6 +123,8 @@ class FwNMPC {
   nav_msgs::Path path_predicted_;
   ros::Publisher pose_pub_;  // for visualization
   geometry_msgs::PoseStamped aircraft_pose_;
+  ros::Publisher reference_pub_;  // for visualization
+  nav_msgs::Path reference_;
   // ros::Publisher obctrl_pub_;
   // ros::Publisher nmpc_info_pub_;
   // ros::Publisher acado_vars_pub_;

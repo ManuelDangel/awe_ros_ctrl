@@ -26,6 +26,8 @@ FwNMPC::FwNMPC()
   setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/setpoint_attitude/attitude", 1);
   path_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/nmpc_predicted", 1);
   pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
+  reference_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/reference", 1);
+
 
   // Initialize NMPC Indexes //
 
@@ -82,6 +84,7 @@ FwNMPC::FwNMPC()
   current_state[3] = 0.0;
   current_state[4] = 50;
   current_state[5] = 0.0;
+  current_radius = parameter[p_index.r];  // initialize radius
 }  // constructor
 
 
@@ -244,6 +247,7 @@ int FwNMPC::nmpcIteration() {
     // send "alive" status
     publishControls();  // zero control input
   }
+  publishReference();
 
   // publish ACADO variables //  // should this go outside?
   // publishAcadoVars();
@@ -281,8 +285,10 @@ void FwNMPC::updateACADO_OD() {
   // update online data
   for (int i = 0; i < N + 1; ++i) {
     for (int j = 0; j < NOD; ++j)
-      if (j==p_index.r) {
-        acadoVariables.od[i * NOD + j] = parameter[j]+parameter[p_index.r_dot]*j*TSTEP;
+      if (j == p_index.r) {
+        acadoVariables.od[i * NOD + j] = current_radius+parameter[p_index.r_dot]*j*TSTEP;
+      } else if (j == p_index.circle_angle) {  // sqrt cone shaped reference
+        acadoVariables.od[i * NOD + j] = parameter[j]*sqrt(parameter[p_index.r]/acadoVariables.od[i*NOD+p_index.r]);
       } else {
         acadoVariables.od[i * NOD + j] = parameter[j];
       }
@@ -389,6 +395,30 @@ void FwNMPC::publishControls() {
   t_lastctrl = ros::Time::now();
 }
 
+void FwNMPC::publishReference() {
+
+  reference_.header.frame_id = "world";
+  reference_.poses = std::vector<geometry_msgs::PoseStamped>(51);
+  double psi, theta;
+  for (int i=0; i<50; ++i) {
+    theta = parameter[p_index.circle_elevation] +
+        parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius)*cos((0.02+0.04*i)*M_PI);
+    psi =  acos((cos(parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius))
+        -sin(parameter[p_index.circle_elevation])*sin(theta))
+                /(cos(parameter[p_index.circle_elevation])*cos(theta)));
+    if (i<25) {
+      psi = psi + parameter[p_index.circle_azimut];
+    } else {
+      psi = -psi + parameter[p_index.circle_azimut];
+    }
+    reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
+    reference_.poses[i].pose.position.y = current_radius*sin(psi)*cos(theta);
+    reference_.poses[i].pose.position.z = current_radius*sin(theta);
+    tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
+  }
+  reference_pub_.publish(reference_);  // Pubish NMPC Reference
+
+}
 
 void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   /*X0[NX] = { parameter[p_index.circle_azimut],
@@ -416,7 +446,7 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   }
   current_state[x_index.psi] = psi;
   current_state[x_index.theta] = theta;
-  parameter[p_index.r] = r;
+  current_radius = r;
 
 
   // Publish current Pose in enu
