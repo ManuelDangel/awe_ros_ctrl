@@ -111,7 +111,7 @@ void FwNMPC::initACADOVars() {
   double U[NU] = { 0.0, 0.0, 0.0 };
   //double OD[NOD];
   double Y[NY] = {0.0};  // Set all entries to 0
-  double W[NY] = { 100.0, 0*20.0, 1.0, 100.0, 0.01*200.0};
+  double W[NY] = { 100.0, 0*20.0, 1.0, 100.0, 200.0};
   double WN[NY] = { 100.0, 0.0, 0*20.0 };
 
   // these set a constant value for each variable through the horizon //
@@ -182,23 +182,10 @@ int FwNMPC::nmpcIteration() {
 
     int obctrl_status = 0;
 
-    if (false) {  // bModeChanged
-      // first time in loop //
-
-      // initHorizon BEFORE Y, this is to make sure controls and prev_horiz are reinitialized before reaching Y update.
-      // initHorizon();
-      // updateACADO_Y();  // not needed for awe_nmpc
-      updateACADO_W();
-
-      bModeChanged = false;
-    } else {
-      // regular update
-
-      // update ACADO states/references/weights //
-      updateACADO_X0();  // note this shifts augmented states
-      // updateACADO_Y();  // not needed for awe_nmpc
-      updateACADO_W();
-    }
+    // regular update
+    // update ACADO states/references/weights //
+    updateACADO_X0();
+    updateACADO_W();
 
     // update time in us <-- //
     t_elapsed = ros::Time::now() - t_update_start;
@@ -275,8 +262,33 @@ void FwNMPC::updateACADO_X0() {
   current_state[x_index.phi] = acadoVariables.x[x_index.phi+NX];
   current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des+NX];
 
-  for (int i = 0; i < NX; ++i) {
+  // catch and safe controller failure NaN's and extreme high KKT
+  bool control_failure = isnan(current_state[x_index.phi_des]);
+  bool solution_bad = (acado_getKKT() > 1000000.0);
+  if (control_failure || solution_bad) {  // catch controller failure
+    ROS_ERROR("Controller Failure: Restarting...");
+
+    current_state[x_index.phi_des] = 0;
+    current_state[x_index.phi] = 0;
+    // controls
+    double U[NU] = { 0.0, 0.0, 0.0 };
+    for (int i = 0; i < N; ++i) {  // set all control back to 0
+      for (int j = 0; j < NU; ++j)
+        acadoVariables.u[i * NU + j] = U[j];
+    }
+    for (int i = 0; i < N + 1; ++i) {  // set states to ok state
+      for (int j = 0; j < NX; ++j)
+        acadoVariables.x[i * NX + j] = current_state[j];
+    }
+  }
+
+  for (int i = 0; i < NX; ++i) {  // set State
     acadoVariables.x0[i] = current_state[i];  // X0[i];
+  }
+
+  if (control_failure) {  // restart after controller failure
+    int RET = acado_initializeSolver();
+    acado_initializeNodesByForwardSimulation();
   }
 }
 
@@ -329,16 +341,18 @@ void FwNMPC::publishControls() {
 
 
   path_predicted_.header.frame_id = "world";
-  path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N);
+  path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N+1);
+  // using the first one to draw a line to visualize the Tether
+  tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), path_predicted_.poses[0].pose.orientation);
 
   for (int i = 0; i < N; i++) {
     // Calculate Planned Aircraft Positions
     const double & psi = acadoVariables.x[x_index.psi+NX*i];
     const double & theta = acadoVariables.x[x_index.theta+NX*i];
     const double & r = acadoVariables.od[p_index.r+NOD*i];
-    path_predicted_.poses[i].pose.position.x = r*cos(psi)*cos(theta);
-    path_predicted_.poses[i].pose.position.y = r*sin(psi)*cos(theta);
-    path_predicted_.poses[i].pose.position.z = r*sin(theta);
+    path_predicted_.poses[i+1].pose.position.x = r*cos(psi)*cos(theta);
+    path_predicted_.poses[i+1].pose.position.y = r*sin(psi)*cos(theta);
+    path_predicted_.poses[i+1].pose.position.z = r*sin(theta);
     // Calculate Planned Aircraft Attitudes
     const double & gamma = acadoVariables.x[x_index.gamma+NX*i];
     const double & vt = acadoVariables.x[x_index.vt+NX*i];
@@ -371,12 +385,12 @@ void FwNMPC::publishControls() {
     attitude_enu = enu2local_rot * attitude_local;
     tf::Quaternion attitude_quat_enu;
     attitude_enu.getRotation(attitude_quat_enu);
-    tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i].pose.orientation);
+    tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i+1].pose.orientation);
     if (i==1) {  // Publish setpoint for low level control
       setpoint_attitude_attitude_.header.frame_id = "world";
-      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i].pose.position.y;
-      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i].pose.position.x;
-      setpoint_attitude_attitude_.pose.position.z = - path_predicted_.poses[i].pose.position.z;
+      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i+1].pose.position.y;
+      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i+1].pose.position.x;
+      setpoint_attitude_attitude_.pose.position.z = - path_predicted_.poses[i+1].pose.position.z;
       tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
                             1.0, 0.0, 0.0,
                             0.0, 0.0, -1.0);
@@ -398,7 +412,7 @@ void FwNMPC::publishControls() {
 void FwNMPC::publishReference() {
 
   reference_.header.frame_id = "world";
-  reference_.poses = std::vector<geometry_msgs::PoseStamped>(51);
+  reference_.poses = std::vector<geometry_msgs::PoseStamped>(50);
   double psi, theta;
   for (int i=0; i<50; ++i) {
     theta = parameter[p_index.circle_elevation] +
@@ -414,7 +428,7 @@ void FwNMPC::publishReference() {
     reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
     reference_.poses[i].pose.position.y = current_radius*sin(psi)*cos(theta);
     reference_.poses[i].pose.position.z = current_radius*sin(theta);
-    tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
+    // tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
   }
   reference_pub_.publish(reference_);  // Pubish NMPC Reference
 
