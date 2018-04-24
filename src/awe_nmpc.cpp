@@ -80,6 +80,7 @@ FwNMPC::FwNMPC()
   // fake signals
   nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
   nmpc_.getParam("/nmpc/coordinate_flip", coordinate_flip);
+  nmpc_.param<double>("/nmpc/angle_of_attack_deg", angle_of_attack_deg, 0.0);
 
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
@@ -254,7 +255,7 @@ int FwNMPC::nmpcIteration() {
 void FwNMPC::updateACADO_X0() {
   double X0[NX] = { parameter[p_index.circle_elevation],
       parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
-      -0.5*M_PI, 0.0, 50.0, 0.0 };
+      -0.5*M_PI, 0.0, 20.0, 0.0 };
 
   // internal horizon propagation:
   /*
@@ -352,6 +353,13 @@ void FwNMPC::publishControls() {
   // using the first one to draw a line to visualize the Tether
   tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0, 1.0), path_predicted_.poses[0].pose.orientation);
 
+  tf::Matrix3x3 attitude_local;
+  attitude_local.setEulerYPR(0.0, angle_of_attack_deg/180*M_PI, 0.0);
+  tf::Quaternion attitude_quat_enu;
+  attitude_local.getRotation(attitude_quat_enu);
+  tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[0].pose.orientation);
+
+
   for (int i = 0; i < N; i++) {
     // Calculate Planned Aircraft Positions
     const double & psi = acadoVariables.x[x_index.psi+NX*i];
@@ -392,9 +400,9 @@ void FwNMPC::publishControls() {
                                pow(airspeed_local.y(), 2)+
                                pow(airspeed_local.z(), 2));
     tf::Matrix3x3 attitude_local;
-    attitude_local.setEulerYPR(-atan(airspeed_local.y()/vt),
-                               -asin(airspeed_local.z()/airspeed_abs),
-                               phi);
+    attitude_local.setEulerYPR(atan(airspeed_local.y()/vt),
+                               -asin(airspeed_local.z()/airspeed_abs - angle_of_attack_deg/180.0*M_PI),
+                               phi+M_PI);
     tf::Matrix3x3 attitude_enu;
     if (coordinate_flip) {
       tf::Matrix3x3 flip_rot(1.0, 0.0, 0.0,

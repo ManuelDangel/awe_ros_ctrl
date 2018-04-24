@@ -142,6 +142,7 @@ class FwNMPC {
   double TSTEP;
   int FAKE_SIGNALS;
   bool coordinate_flip;
+  double angle_of_attack_deg;
 
   /* node functions */
   void shutdown();
