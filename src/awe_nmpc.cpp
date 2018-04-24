@@ -14,7 +14,8 @@ FwNMPC::FwNMPC()
       obctrl_en_(0),
       bYawReceived(false),
       last_yaw_msg_(0.0f),
-      loop_counter(0) {
+      loop_counter(0),
+      coordinate_flip(false) {
   ROS_INFO("Instance of NMPC created");
   /* subscribers */
   position_sub_ = nmpc_.subscribe("/mavros/local_position/pose", 1,
@@ -51,8 +52,9 @@ FwNMPC::FwNMPC()
   p_index.cda = 8;
   p_index.phi_freq = 9;
   p_index.wind_azimut = 10;
-  p_index.weight_tracking = 11;
-  p_index.weight_power = 12;
+  p_index.thrust_power = 11;
+  p_index.weight_tracking = 12;
+  p_index.weight_power = 13;
 
   // Initialize NMPC Parameters from launch file //
   nmpc_.param<double>("/nmpc/param_vw", parameter[p_index.vw], 10.0);
@@ -66,6 +68,7 @@ FwNMPC::FwNMPC()
   nmpc_.param<double>("/nmpc/param_cda", parameter[p_index.cda], 0.07);
   nmpc_.param<double>("/nmpc/param_phi_freq", parameter[p_index.phi_freq], 2.7);
   nmpc_.param<double>("/nmpc/param_wind_azimut", parameter[p_index.wind_azimut], 0.0);
+  nmpc_.param<double>("/nmpc/param_thrust_power", parameter[p_index.thrust_power], 0.0);
   nmpc_.param<double>("/nmpc/param_weight_tracking", parameter[p_index.weight_tracking], 1.0);
   nmpc_.param<double>("/nmpc/param_weight_power", parameter[p_index.weight_power], 1.0);
 
@@ -76,6 +79,7 @@ FwNMPC::FwNMPC()
   nmpc_.getParam("/nmpc/time_step", TSTEP);
   // fake signals
   nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
+  nmpc_.getParam("/nmpc/coordinate_flip", coordinate_flip);
 
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
@@ -301,6 +305,10 @@ void FwNMPC::updateACADO_OD() {
         acadoVariables.od[i * NOD + j] = current_radius+parameter[p_index.r_dot]*j*TSTEP;
       } else if (j == p_index.circle_angle) {  // sqrt cone shaped reference
         acadoVariables.od[i * NOD + j] = parameter[j]*sqrt(parameter[p_index.r]/acadoVariables.od[i*NOD+p_index.r]);
+      } else if (j == p_index.thrust_power) {
+        // Thrust calculation!
+        // Set Thrust full at vt<=10 and none at vt>=20
+        acadoVariables.od[i * NOD + j] = parameter[j]* std::min(1.0, std::max(0.0, 20-acadoVariables.x[i * NX + x_index.vt]*0.1));
       } else {
         acadoVariables.od[i * NOD + j] = parameter[j];
       }
@@ -339,7 +347,6 @@ void FwNMPC::publishControls() {
   double obj = (double) acado_getObjective();
   ROS_INFO("KKT: %f Obj: %f, ", kkt, obj);
 
-
   path_predicted_.header.frame_id = "world";
   path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N+1);
   // using the first one to draw a line to visualize the Tether
@@ -350,9 +357,15 @@ void FwNMPC::publishControls() {
     const double & psi = acadoVariables.x[x_index.psi+NX*i];
     const double & theta = acadoVariables.x[x_index.theta+NX*i];
     const double & r = acadoVariables.od[p_index.r+NOD*i];
-    path_predicted_.poses[i+1].pose.position.x = r*cos(psi)*cos(theta);
-    path_predicted_.poses[i+1].pose.position.y = r*sin(psi)*cos(theta);
-    path_predicted_.poses[i+1].pose.position.z = r*sin(theta);
+    if (coordinate_flip) {
+      path_predicted_.poses[i+1].pose.position.x = r*cos(psi)*cos(theta);
+      path_predicted_.poses[i+1].pose.position.y = -r*sin(theta);
+      path_predicted_.poses[i+1].pose.position.z = r*sin(psi)*cos(theta);
+    } else {
+      path_predicted_.poses[i+1].pose.position.x = r*cos(psi)*cos(theta);
+      path_predicted_.poses[i+1].pose.position.y = r*sin(psi)*cos(theta);
+      path_predicted_.poses[i+1].pose.position.z = r*sin(theta);
+    }
     // Calculate Planned Aircraft Attitudes
     const double & gamma = acadoVariables.x[x_index.gamma+NX*i];
     const double & vt = acadoVariables.x[x_index.vt+NX*i];
@@ -368,7 +381,8 @@ void FwNMPC::publishControls() {
            cos(theta)*cos(gamma),
           -cos(theta)*sin(gamma),
           -sin(theta));
-    tf::Vector3 wind_enu(acadoVariables.od[p_index.vw+NOD*i], 0.0, 0.0);
+    tf::Vector3 wind_enu(acadoVariables.od[p_index.vw+NOD*i]*cos(acadoVariables.od[p_index.wind_azimut+NOD*i]),
+                         acadoVariables.od[p_index.vw+NOD*i]*sin(acadoVariables.od[p_index.wind_azimut+NOD*i]), 0.0);
     tf::Vector3 wind_local;
     wind_local = enu2local_rot.transpose() * wind_enu;  // Tf wind to local
     tf::Vector3 groundspeed_local(vt, 0, -r_dot);
@@ -382,22 +396,32 @@ void FwNMPC::publishControls() {
                                -asin(airspeed_local.z()/airspeed_abs),
                                phi);
     tf::Matrix3x3 attitude_enu;
-    attitude_enu = enu2local_rot * attitude_local;
+    if (coordinate_flip) {
+      tf::Matrix3x3 flip_rot(1.0, 0.0, 0.0,
+                            0.0, 0.0, -1.0,
+                            0.0, 1.0, 0.0);
+      attitude_enu = flip_rot * enu2local_rot * attitude_local;
+    } else {
+      attitude_enu = enu2local_rot * attitude_local;
+    }
     tf::Quaternion attitude_quat_enu;
     attitude_enu.getRotation(attitude_quat_enu);
     tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i+1].pose.orientation);
     if (i==1) {  // Publish setpoint for low level control
+      // Publish also in ENU
       setpoint_attitude_attitude_.header.frame_id = "world";
-      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i+1].pose.position.y;
-      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i+1].pose.position.x;
-      setpoint_attitude_attitude_.pose.position.z = - path_predicted_.poses[i+1].pose.position.z;
+      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i+1].pose.position.x;
+      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i+1].pose.position.y;
+      setpoint_attitude_attitude_.pose.position.z = path_predicted_.poses[i+1].pose.position.z;
+      /*
       tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
                             1.0, 0.0, 0.0,
                             0.0, 0.0, -1.0);
       tf::Matrix3x3 attitude_ned = ned2enu * attitude_enu;
       tf::Quaternion attitude_quat_ned;
       attitude_enu.getRotation(attitude_quat_ned);
-      tf::quaternionTFToMsg(attitude_quat_ned, setpoint_attitude_attitude_.pose.orientation);
+      */
+      tf::quaternionTFToMsg(attitude_quat_enu, setpoint_attitude_attitude_.pose.orientation);
     }
   }
   path_pub_.publish(path_predicted_);  // Pubish NMPC Results
@@ -425,9 +449,15 @@ void FwNMPC::publishReference() {
     } else {
       psi = -psi + parameter[p_index.circle_azimut];
     }
-    reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
-    reference_.poses[i].pose.position.y = current_radius*sin(psi)*cos(theta);
-    reference_.poses[i].pose.position.z = current_radius*sin(theta);
+    if (coordinate_flip) {
+      reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
+      reference_.poses[i].pose.position.y = -current_radius*sin(theta);
+      reference_.poses[i].pose.position.z = current_radius*sin(psi)*cos(theta);
+    } else {
+      reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
+      reference_.poses[i].pose.position.y = current_radius*sin(psi)*cos(theta);
+      reference_.poses[i].pose.position.z = current_radius*sin(theta);
+    }
     // tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
   }
   reference_pub_.publish(reference_);  // Pubish NMPC Reference
@@ -438,15 +468,20 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   /*X0[NX] = { parameter[p_index.circle_azimut],
         parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
         -0.5*M_PI, 0.0, 50.0, 0.0 };*/
-  // NED to ENU (East.North-Up)
-  // IT SEEMS THAT PX4 ALREADY GIVES US ENU??
+  // MAVROS OUTPUTS ENU
   const double & x = msg->pose.position.x;
   const double & y = msg->pose.position.y;
-  const double & z = (msg->pose.position.z);
+  const double & z = msg->pose.position.z;
   double r = sqrt(x*x+y*y+z*z);
+  double psi, theta;
+  if (coordinate_flip) {
+    psi = atan2(z, x);   // set Azimut Angle
+    theta = asin(-y/r);   // set Elevation Angle
+  } else {
+    psi = atan2(y, x);   // set Azimut Angle
+    theta = asin(z/r);   // set Elevation Angle
+  }
 
-  double psi = atan2(y, x);   // set Azimut Angle
-  double theta = asin(z/r);  // set Elevation Angle
 
   // Wrapping of Horizon for psi
   if (psi > current_state[x_index.psi] + M_PI) {
@@ -465,87 +500,30 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
 
   // Publish current Pose in enu
   aircraft_pose_.header.frame_id = "world";
-  // IT SEEMS THAT PX4 ALREADY GIVES US ENU??
-  /*
-  aircraft_pose_.pose.position.x = msg->pose.position.y;
-  aircraft_pose_.pose.position.y = msg->pose.position.x;
-  aircraft_pose_.pose.position.z = -(msg->pose.position.z);
-  tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
-                        1.0, 0.0, 0.0,
-                        0.0, 0.0, -1.0);
-  tf::Quaternion orientation_quat;
-  tf::quaternionMsgToTF(msg->pose.orientation, orientation_quat);
-  tf::Matrix3x3 orientation(orientation_quat);
-  tf::Quaternion orientation_enu;
-  orientation.getRotation(orientation_enu);
-  tf::quaternionTFToMsg(orientation_enu, aircraft_pose_.pose.orientation);
-  */
   aircraft_pose_.pose = msg->pose;
   pose_pub_.publish(aircraft_pose_);  // Pubish current aircraft pose in enu
 
   // ROS_INFO_STREAM("Received Position Update");
-
-  /*
-  tf::Transform ned2enu_transform;  // NED to ENU (East.North-Up)
-  ned2enu_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  ned2enu_transform.setBasis(tf::Matrix3x3(0.0, 1.0, 0.0,
-                                           1.0, 0.0, 0.0,
-                                           0.0, 0.0, -1.0));
-  // ned2enu_transform.
-
-  tf::Transform enu2azimut_transform;  // Turn towards proper Azimut
-  enu2azimut_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  enu2azimut_transform.setBasis(tf::Matrix3x3(
-      cos(psi), -sin(psi), 0.0,
-      sin(psi), cos(psi), 0.0,
-      0.0, 0.0, 1.0));
-  tf::Transform azimut2elevation_transform;  // Turn towards proper Elevation
-  azimut2elevation_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  azimut2elevation_transform.setBasis(tf::Matrix3x3(
-      cos(-theta), 0.0, sin(-theta),
-      0.0, 1.0, 0.0,
-      -sin(-theta), 0.0, cos(-theta)));
-  tf::Transform elevation2sphere_transform;
-  // Move out to sphere and flip such that z axis points to center and x to pole
-  elevation2sphere_transform.setOrigin(tf::Vector3(r, 0.0, 0.0));
-  elevation2sphere_transform.setBasis(tf::Matrix3x3(
-      0.0, 0.0, -1.0,
-      0.0, 1.0, 0.0,
-      1.0, 0.0, 0.0));
-  tf::Transform sphere2heading_transform;  // Turn towards proper Azimut
-  sphere2heading_transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-  sphere2heading_transform.setBasis(tf::Matrix3x3(
-      cos(psi), -sin(psi), 0.0,
-      sin(psi), cos(psi), 0.0,
-      0.0, 0.0, 1.0));
-      */
-
-    // TODO(Manuel): ADD WRAPPING!!!
 }
 
 void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   const double & vx = msg->twist.linear.x;
   const double & vy = msg->twist.linear.y;
   const double & vz = msg->twist.linear.z;
-  tf::Vector3 velocity_ned(vx, vy, vz);
+  tf::Vector3 velocity_enu(vx, vy, vz);
+  if (coordinate_flip) {  // flip coordinate frame
+    velocity_enu.setY(vz);
+    velocity_enu.setZ(-vy);
+  }
   const double & psi = current_state[x_index.psi];
   const double & theta = current_state[x_index.theta];
-  /*
-  tf::Matrix3x3 ned2enu_rot(0.0, 1.0, 0.0,
-                            1.0, 0.0, 0.0,
-                            0.0, 0.0, -1.0);
-                            */
   tf::Matrix3x3 enu2sphere_rot(
       -sin(theta)*cos(psi), -sin(psi), -cos(theta)*cos(psi),
       -sin(theta)*cos(psi), cos(psi), -cos(theta)*sin(psi),
       cos(theta), 0.0, -sin(theta));
   tf::Vector3 velocity_sphere;
-  velocity_sphere = enu2sphere_rot.transpose() * velocity_ned;
-  /*double gamma = atan2(velocity_sphere.getY(), velocity_sphere.getX());  // set Heading Angle
-  if (gamma > current_state[x_index.gamma] + )
-  current_state[x_index.gamma] = gamma;
-  double vt = sqrt(pow(velocity_sphere.getX(), 2) + pow(velocity_sphere.getY(), 2));
-  current_state[x_index.vt] = vt;*/
+  velocity_sphere = enu2sphere_rot.transpose() * velocity_enu;
+
   double gamma = atan2(velocity_sphere.y(), velocity_sphere.x());  // calc Heading Angle
   // Wrapping of Horizon
   if (gamma > current_state[x_index.gamma] + M_PI) {

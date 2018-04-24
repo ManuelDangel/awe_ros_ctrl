@@ -48,7 +48,7 @@ struct Uindex {  // Lists the indexes of the different control inputs
 
 struct Pindex {  // Lists the indexes of the different online parameters
   int vw, r, r_dot, circle_azimut, circle_elevation, circle_angle, m,
-  cla, cda, phi_freq, wind_azimut, weight_tracking, weight_power;
+  cla, cda, phi_freq, wind_azimut, thrust_power, weight_tracking, weight_power;
 };
 
 
@@ -139,6 +139,9 @@ class FwNMPC {
   /* continuity */
   bool bYawReceived;
   float last_yaw_msg_;
+
+  /* settings */
+  bool coordinate_flip;
 
   /* node functions */
   void shutdown();
