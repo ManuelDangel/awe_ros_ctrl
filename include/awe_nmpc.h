@@ -94,9 +94,6 @@ class FwNMPC {
   void publishControls();
   void publishReference();
 
-  double LOOP_RATE;
-  double TSTEP;
-  int FAKE_SIGNALS;
   int loop_counter;
 
  private:
@@ -141,6 +138,9 @@ class FwNMPC {
   float last_yaw_msg_;
 
   /* settings */
+  double LOOP_RATE;
+  double TSTEP;
+  int FAKE_SIGNALS;
   bool coordinate_flip;
 
   /* node functions */

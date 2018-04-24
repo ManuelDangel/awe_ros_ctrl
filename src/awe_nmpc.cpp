@@ -350,7 +350,7 @@ void FwNMPC::publishControls() {
   path_predicted_.header.frame_id = "world";
   path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N+1);
   // using the first one to draw a line to visualize the Tether
-  tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), path_predicted_.poses[0].pose.orientation);
+  tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0, 1.0), path_predicted_.poses[0].pose.orientation);
 
   for (int i = 0; i < N; i++) {
     // Calculate Planned Aircraft Positions
