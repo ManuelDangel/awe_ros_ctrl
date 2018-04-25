@@ -24,7 +24,7 @@ FwNMPC::FwNMPC()
                                   &FwNMPC::velocityCb, this);
 
   /* publishers */
-  setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/setpoint_attitude/attitude", 1);
+  setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_attitude/attitude", 1);
   path_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/nmpc_predicted", 1);
   pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
   reference_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/reference", 1);
@@ -433,7 +433,7 @@ void FwNMPC::publishControls() {
     }
   }
   path_pub_.publish(path_predicted_);  // Pubish NMPC Results
-
+  setpoint_attitude_attitude_pub_.publish(setpoint_attitude_attitude_);
 
   // update last control timestamp / publish elapsed ctrl loop time //
   ros::Duration t_elapsed = ros::Time::now() - t_lastctrl;

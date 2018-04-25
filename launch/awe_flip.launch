@@ -10,7 +10,7 @@
     <param name="/nmpc/param_r_dot" type="double" value="0.0" />
     <param name="/nmpc/param_circle_azimut" type="double" value="1.57" />
     <param name="/nmpc/param_circle_elevation" type="double" value="0.0" />
-    <param name="/nmpc/param_circle_angle" type="double" value="0.25" />
+    <param name="/nmpc/param_circle_angle" type="double" value="0.29" />
     <param name="/nmpc/param_m" type="double" value="1.7" />
     <param name="/nmpc/param_cla" type="double" value="0.2" />
     <param name="/nmpc/param_cld" type="double" value="0.025" />
