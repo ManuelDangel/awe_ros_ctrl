@@ -5,13 +5,13 @@
     <param name="/nmpc/coordinate_flip" type="bool" value="true" />
     <param name="/nmpc/angle_of_attack_deg" type="double" value="3.0" />
 
-    <param name="/nmpc/param_vw" type="double" value="-6.0" />
+    <param name="/nmpc/param_vw" type="double" value="0.0" />
     <param name="/nmpc/param_r" type="double" value="100.0" />
     <param name="/nmpc/param_r_dot" type="double" value="0.0" />
     <param name="/nmpc/param_circle_azimut" type="double" value="1.57" />
     <param name="/nmpc/param_circle_elevation" type="double" value="0.0" />
     <param name="/nmpc/param_circle_angle" type="double" value="0.29" />
-    <param name="/nmpc/param_m" type="double" value="1.7" />
+    <param name="/nmpc/param_m" type="double" value="2.0" />
     <param name="/nmpc/param_cla" type="double" value="0.2" />
     <param name="/nmpc/param_cld" type="double" value="0.025" />
     <param name="/nmpc/param_phi_freq" type="double" value="2.7" />
@@ -19,5 +19,9 @@
     <param name="/nmpc/param_thrust_power" type="double" value="380.0" />
     <param name="/nmpc/param_weight_tracking" type="double" value="1.0" />
     <param name="/nmpc/param_weight_power" type="double" value="0.0" />
+
+    <param name="/nmpc/cost_control" type="double" value="1.0" />
+    <param name="/nmpc/cost_tracking" type="double" value="100.0" />
+    <param name="/nmpc/cost_power" type="double" value="0.0" />
 
 </launch>

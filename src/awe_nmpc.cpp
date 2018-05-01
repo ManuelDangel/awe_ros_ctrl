@@ -28,7 +28,7 @@ FwNMPC::FwNMPC()
   path_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/nmpc_predicted", 1);
   pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
   reference_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/reference", 1);
-
+  state_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/state", 1);
 
   // Initialize NMPC Indexes //
 
@@ -82,6 +82,11 @@ FwNMPC::FwNMPC()
   nmpc_.getParam("/nmpc/coordinate_flip", coordinate_flip);
   nmpc_.param<double>("/nmpc/angle_of_attack_deg", angle_of_attack_deg, 0.0);
 
+  // Initialize Cost Function Parameters from Launch File
+  nmpc_.param<double>("/nmpc/cost_control", cost.control, 1.0);
+  nmpc_.param<double>("/nmpc/cost_tracking", cost.tracking, 100.0);
+  nmpc_.param<double>("/nmpc/cost_power", cost.power, 0.0);
+
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
   current_state[1] = parameter[p_index.circle_elevation]+parameter[p_index.circle_angle];
@@ -116,8 +121,8 @@ void FwNMPC::initACADOVars() {
   double U[NU] = { 0.0, 0.0, 0.0 };
   //double OD[NOD];
   double Y[NY] = {0.0};  // Set all entries to 0
-  double W[NY] = { 100.0, 0*20.0, 1.0, 100.0, 200.0};
-  double WN[NY] = { 100.0, 0.0, 0*20.0 };
+  double W[NY] = { cost.tracking, cost.power, cost.control, 100.0, 200.0};
+  double WN[NY] = { cost.tracking, 0.0, cost.power };
 
   // these set a constant value for each variable through the horizon //
 
@@ -434,6 +439,17 @@ void FwNMPC::publishControls() {
   }
   path_pub_.publish(path_predicted_);  // Pubish NMPC Results
   setpoint_attitude_attitude_pub_.publish(setpoint_attitude_attitude_);
+
+  // publish state for logging
+  state_.header.frame_id = "world";
+  state_.pose.position.x = current_state[x_index.psi];
+  state_.pose.position.y = current_state[x_index.theta];
+  state_.pose.position.z = current_radius;
+  state_.pose.orientation.x = current_state[x_index.gamma];
+  state_.pose.orientation.y = current_state[x_index.phi];
+  state_.pose.orientation.z = current_state[x_index.vt];
+  state_.pose.orientation.w = current_state[x_index.phi_des];
+  state_pub_.publish(state_);  // Pubish state
 
   // update last control timestamp / publish elapsed ctrl loop time //
   ros::Duration t_elapsed = ros::Time::now() - t_lastctrl;

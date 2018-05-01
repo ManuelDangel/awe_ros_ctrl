@@ -51,6 +51,9 @@ struct Pindex {  // Lists the indexes of the different online parameters
   cla, cda, phi_freq, wind_azimut, thrust_power, weight_tracking, weight_power;
 };
 
+struct Cost {  // Tuning of the cost function
+  double control, tracking, power;
+};
 
 /*
  * @brief fw_nmpc class
@@ -104,6 +107,8 @@ class FwNMPC {
   Xindex x_index;
   Uindex u_index;
   Pindex p_index;
+  // Cost Struct
+  Cost cost;
   // NMPC Parameter
   double parameter[NOD];
   // state
@@ -122,6 +127,8 @@ class FwNMPC {
   geometry_msgs::PoseStamped aircraft_pose_;
   ros::Publisher reference_pub_;  // for visualization
   nav_msgs::Path reference_;
+  ros::Publisher state_pub_;  // for logging
+  geometry_msgs::PoseStamped state_;
   // ros::Publisher obctrl_pub_;
   // ros::Publisher nmpc_info_pub_;
   // ros::Publisher acado_vars_pub_;
