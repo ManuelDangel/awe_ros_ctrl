@@ -97,6 +97,11 @@ FwNMPC::FwNMPC()  // CONSTRUCTOR
   current_state[5] = 0.0;
   current_radius = parameter[p_index.r];  // initialize radius
   airspeed = 0;
+
+  // Initialize Resets
+  reset_control_failure = false;
+  reset_solution_bad = false;
+  reset_no_offboard_mode = false;
 }  // constructor
 
 
@@ -115,13 +120,11 @@ int FwNMPC::initNMPC() {
 
 
 void FwNMPC::initACADOVars() {
-  // TODO: maybe actually wait for all subscriptions to be filled here before initializing?
-  // put something reasonable here.. NOT all zeros, solver is initialized from here //
   double X[NX] = { parameter[p_index.circle_azimut],
       parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
       -0.5*M_PI, 0.0, 50.0, 0.0 };
   double U[NU] = { 0.0, 0.0, 0.0 };
-  //double OD[NOD];
+  // double OD[NOD];
   double Y[NY] = {0.0};  // Set all entries to 0
   double W[NY] = { cost.tracking, cost.power, cost.control, 100.0, 200.0};
   double WN[NY] = { cost.tracking, 0.0, cost.power };
@@ -174,7 +177,7 @@ int FwNMPC::nmpcIteration() {
   ros::Time t_iter_start = ros::Time::now();
   // various timer initializations //
   uint64_t t_ctrl = 0;  // time elapsed since last control action was published (stays zero if not in auto mode)
-  uint64_t t_solve = 0; // time elapsed during nmpc preparation and feedback step (solve time)
+  uint64_t t_solve = 0;  // time elapsed during nmpc preparation and feedback step (solve time)
   uint64_t t_update = 0;  // time elapsed during array updates
   uint64_t t_wp_man = 0;  // time elapsed during waypoint management
 
@@ -201,22 +204,19 @@ int FwNMPC::nmpcIteration() {
   // start nmpc solve timer --> //
   ros::Time t_solve_start = ros::Time::now();
 
-  // ROS_INFO_STREAM("State before preparation: vt: " << acadoVariables.x[4]);
   // Prepare first step //
   RET[0] = acado_preparationStep();
   if (RET[0] != 0) {
     ROS_ERROR("nmpcIteration: preparation step error, code %d", RET[0]);
     obctrl_status = RET[0];
   }
-  // ROS_INFO_STREAM("State before feedback: vt: " << acadoVariables.x[4]);
 
   // Perform the feedback step. //
   RET[1] = acado_feedbackStep();
   if (RET[1] != 0) {
     ROS_ERROR("nmpcIteration: feedback step error, code %d", RET[1]);
-    obctrl_status = RET[1];  //TODO: find a way that doesnt overwrite the other one...
+    obctrl_status = RET[1];
   }
-  // ROS_INFO_STREAM("State after feedback: vt: " << acadoVariables.x[4]);
 
   // solve time in us <-- //
   t_elapsed = ros::Time::now() - t_solve_start;
@@ -230,8 +230,7 @@ int FwNMPC::nmpcIteration() {
   // publish control action //
   publishControls();
 
-  //TODO: this should be interpolated in the event of Tnmpc ~= Tfcall //TODO: should this be before the feedback step?
-  // Optional: shift the initialization (look in acado_common.h). //
+  // Shift the initialization (look in acado_common.h). //
   acado_shiftStates(2, 0, 0);
   acado_shiftControls(0);
 
@@ -264,10 +263,22 @@ void FwNMPC::updateACADO_X0() {
   current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des+NX];
 
   // catch and safe controller failure NaN's and extreme high KKT
-  bool control_failure = isnan(current_state[x_index.phi_des]);
-  bool solution_bad = (acado_getKKT() > 1000000.0);
-  if (control_failure || solution_bad) {  // catch controller failure
-    ROS_ERROR("Controller Failure: Restarting...");
+  reset_control_failure = isnan(current_state[x_index.phi_des]);
+  reset_solution_bad = (acado_getKKT() > 1000000.0);
+  if (reset_control_failure || reset_solution_bad || reset_no_offboard_mode) {
+    // catch controller failure
+    if (reset_control_failure) {
+      ROS_ERROR("Controller Failure, NaN's in Solution!");
+    } else if (reset_solution_bad) {
+      ROS_ERROR("Controller Failure, KKT too high!");
+    } else {
+      ROS_WARN("Reinitializing Controller because Offboard control mode is not switched on");
+      // This is to try to get out of local minimas in the solution
+      // Typically the Horizon used to get stuck in a solution running
+      // the opposite direction of the circle
+    }
+    reset_no_offboard_mode = false;
+    ROS_WARN("NMPC restarting...");
 
     current_state[x_index.phi_des] = 0;
     current_state[x_index.phi] = 0;
@@ -287,7 +298,7 @@ void FwNMPC::updateACADO_X0() {
     acadoVariables.x0[i] = current_state[i];  // X0[i];
   }
 
-  if (control_failure) {  // restart after controller failure
+  if (reset_control_failure) {  // restart after controller failure
     int RET = acado_initializeSolver();
     acado_initializeNodesByForwardSimulation();
   }
@@ -340,8 +351,8 @@ void FwNMPC::publishControls() {
   ROS_INFO_STREAM("Control_Publish: vt at 0: " << acadoVariables.x[4] << " vt at 10: " << acadoVariables.x[4+6*10]);
   ROS_INFO_STREAM("Control_Publish: rr at 0: " << ctrl[0]);
 
-  double kkt = (double) acado_getKKT();
-  double obj = (double) acado_getObjective();
+  double kkt = static_cast<double>(acado_getKKT());
+  double obj = static_cast<double>(acado_getObjective());
   ROS_INFO("KKT: %f Obj: %f, ", kkt, obj);
 
   path_predicted_.header.frame_id = "world";
@@ -411,7 +422,7 @@ void FwNMPC::publishControls() {
     tf::Quaternion attitude_quat_enu;
     attitude_enu.getRotation(attitude_quat_enu);
     tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i+1].pose.orientation);
-    if (i==1) {  // Publish setpoint for low level control
+    if (i == 1) {  // Publish setpoint for low level control
       // Publish also in ENU
       setpoint_attitude_attitude_.header.frame_id = "world";
       setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i+1].pose.position.x;
@@ -449,17 +460,16 @@ void FwNMPC::publishControls() {
 }
 
 void FwNMPC::publishReference() {
-
   reference_.header.frame_id = "world";
   reference_.poses = std::vector<geometry_msgs::PoseStamped>(50);
   double psi, theta;
-  for (int i=0; i<50; ++i) {
+  for (int i=0; i < 50; ++i) {
     theta = parameter[p_index.circle_elevation] +
         parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius)*cos((0.02+0.04*i)*M_PI);
     psi =  acos((cos(parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius))
         -sin(parameter[p_index.circle_elevation])*sin(theta))
                 /(cos(parameter[p_index.circle_elevation])*cos(theta)));
-    if (i<25) {
+    if (i < 25) {
       psi = psi + parameter[p_index.circle_azimut];
     } else {
       psi = -psi + parameter[p_index.circle_azimut];
@@ -476,7 +486,6 @@ void FwNMPC::publishReference() {
     // tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
   }
   reference_pub_.publish(reference_);  // Pubish NMPC Reference
-
 }
 
 void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
@@ -497,7 +506,6 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
     theta = asin(z/r);   // set Elevation Angle
   }
 
-
   // Wrapping of Horizon for psi
   if (psi > current_state[x_index.psi] + M_PI) {
     for (int i = 0; i < N + 1; ++i) {
@@ -512,13 +520,10 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   current_state[x_index.theta] = theta;
   current_radius = r;
 
-
   // Publish current Pose in enu
   aircraft_pose_.header.frame_id = "world";
   aircraft_pose_.pose = msg->pose;
-  pose_pub_.publish(aircraft_pose_);  // Pubish current aircraft pose in enu
-
-  // ROS_INFO_STREAM("Received Position Update");
+  pose_pub_.publish(aircraft_pose_);  // Publish current aircraft pose in enu
 }
 
 void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
@@ -554,11 +559,21 @@ void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
 
   double vt = std::sqrt(std::pow(velocity_sphere.x(), 2)+std::pow(velocity_sphere.y(), 2));
   ROS_INFO_STREAM("Set Velocity State: vx " <<  vx << " vy " << vy << " vx_sphere " << velocity_sphere.x() << " vy_sphere " << velocity_sphere.y());
-  current_state[x_index.vt] = std::max(vt,5.0);  // set sphere velocity with lower bound
+  current_state[x_index.vt] = std::max(vt, 5.0);  // set sphere velocity with lower bound
 }
 
 void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
-  msg->mode;
+  // this message comes at 1 Hz and resets the NMPC if not in OFFBOARD mode
+  ROS_INFO_STREAM("Received Pixhawk Mode: " <<  msg->mode);
+  if (msg->mode == "OFFBOARD") {
+    reset_no_offboard_mode = false;
+  } else {
+    if (static_cast<double>(acado_getObjective()) > 100.0) {
+      // Reset only if we are not already tracking the circle well
+      // (std::rand()*1.0/RAND_MAX > 1.0/std::log10(static_cast<double>(acado_getObjective()))) {
+      reset_no_offboard_mode = true;
+    }
+  }
 }
 
 void FwNMPC::vfrHudCb(const mavros_msgs::VFR_HUD::ConstPtr& msg) {
@@ -578,7 +593,7 @@ void FwNMPC::shutdown() {
   ros::shutdown();
 }
 
-};  // namespace awe_nmpc
+};  // namespace fw_nmpc
 
 
 int main(int argc, char **argv) {
@@ -586,9 +601,6 @@ int main(int argc, char **argv) {
   ros::init(argc, argv, "awe_nmpc");
   fw_nmpc::FwNMPC nmpc;
   ros::spinOnce();
-
-  // wait for required subscriptions //
-  //nmpc.reqSubs();
 
   // initialize states, params, and solver //
   int ret = nmpc.initNMPC();
@@ -622,8 +634,6 @@ int main(int argc, char **argv) {
     // sleep //
     nmpc_rate.sleep();
   }
-
-
 
   ROS_ERROR("awe_nmpc: closing...");
 
