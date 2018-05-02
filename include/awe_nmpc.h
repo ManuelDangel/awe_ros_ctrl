@@ -15,6 +15,8 @@
 #include <std_msgs/Float32MultiArray.h>
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <mavros_msgs/State.h>
+#include <mavros_msgs/VFR_HUD.h>
 
 // general includes
 #include "math.h"
@@ -69,15 +71,8 @@ class FwNMPC {
   /* callbacks */
   void positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg);
   void velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg);
-  // void aslctrlDataCb(const mavros_msgs::AslCtrlData::ConstPtr& msg);
-  //void globPosCb(const sensor_msgs::NavSatFix::ConstPtr& msg);
-  //void odomCb(const nav_msgs::Odometry::ConstPtr& msg);
-  // void ekfExtCb(const mavros_msgs::AslEkfExt::ConstPtr& msg);
-  // void nmpcParamsCb(const mavros_msgs::AslNmpcParams::ConstPtr& msg);
-  //void waypointListCb(const mavros_msgs::WaypointList::ConstPtr& msg);
-  //void currentWpCb(const std_msgs::Int32::ConstPtr& msg);
-  //void homeWpCb(const mavros_msgs::HomePosition::ConstPtr& msg);
-  // void aslctrlDebugCb(const mavros_msgs::AslCtrlDebug::ConstPtr& msg);
+  void stateCb(const mavros_msgs::State::ConstPtr& msg);
+  void vfrHudCb(const mavros_msgs::VFR_HUD::ConstPtr& msg);
   /* initializations */
   int initNMPC();
   void initACADOVars();
@@ -103,21 +98,24 @@ class FwNMPC {
   /* node handles */
   ros::NodeHandle nmpc_;
 
-  // NMPC Indexes
+  /* NMPC Indexes */
   Xindex x_index;
   Uindex u_index;
   Pindex p_index;
-  // Cost Struct
-  Cost cost;
-  // NMPC Parameter
+
+  /* NMPC Parameter */
   double parameter[NOD];
-  // state
+
+  /* state */
   double current_state[NX];
   double current_radius;
+  double airspeed;
 
   /* subscribers */
   ros::Subscriber position_sub_;
   ros::Subscriber velocity_sub_;
+  ros::Subscriber state_sub_;  // fcu state (mode)
+  ros::Subscriber vfr_hud_sub_;  // airspeed
   /* publishers */
   ros::Publisher setpoint_attitude_attitude_pub_;  // control
   geometry_msgs::PoseStamped setpoint_attitude_attitude_;
@@ -129,20 +127,12 @@ class FwNMPC {
   nav_msgs::Path reference_;
   ros::Publisher state_pub_;  // for logging
   geometry_msgs::PoseStamped state_;
-  // ros::Publisher obctrl_pub_;
-  // ros::Publisher nmpc_info_pub_;
-  // ros::Publisher acado_vars_pub_;
   /* time keeping */
   ros::Time t_lastctrl;
 
   /* controller switch */
   bool bModeChanged;
   int last_ctrl_mode;
-  int obctrl_en_;
-
-  /* continuity */
-  bool bYawReceived;
-  float last_yaw_msg_;
 
   /* settings */
   double LOOP_RATE;
@@ -150,6 +140,10 @@ class FwNMPC {
   int FAKE_SIGNALS;
   bool coordinate_flip;
   double angle_of_attack_deg;
+
+  /* Cost Tuning */
+  Cost cost;
+
 
   /* node functions */
   void shutdown();

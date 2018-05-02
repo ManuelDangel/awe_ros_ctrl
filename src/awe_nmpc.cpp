@@ -4,16 +4,13 @@
 
 namespace fw_nmpc {
 
-FwNMPC::FwNMPC()
+FwNMPC::FwNMPC()  // CONSTRUCTOR
     : LOOP_RATE(10.0),  // MAGIC NUMBER
       TSTEP(0.1),  // MAGIC NUMBER
       FAKE_SIGNALS(0),
       t_lastctrl { ros::Time::now() },
       bModeChanged(false),
       last_ctrl_mode(0),
-      obctrl_en_(0),
-      bYawReceived(false),
-      last_yaw_msg_(0.0f),
       loop_counter(0),
       coordinate_flip(false) {
   ROS_INFO("Instance of NMPC created");
@@ -22,6 +19,10 @@ FwNMPC::FwNMPC()
                                   &FwNMPC::positionCb, this);
   velocity_sub_ = nmpc_.subscribe("/mavros/local_position/velocity", 1,
                                   &FwNMPC::velocityCb, this);
+  state_sub_ = nmpc_.subscribe("/mavros/state", 1,
+                                  &FwNMPC::stateCb, this);
+  vfr_hud_sub_ = nmpc_.subscribe("/mavros/vfr_hud", 1,
+                                  &FwNMPC::vfrHudCb, this);
 
   /* publishers */
   setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_attitude/attitude", 1);
@@ -95,6 +96,7 @@ FwNMPC::FwNMPC()
   current_state[4] = 50;
   current_state[5] = 0.0;
   current_radius = parameter[p_index.r];  // initialize radius
+  airspeed = 0;
 }  // constructor
 
 
@@ -109,7 +111,7 @@ int FwNMPC::initNMPC() {
   acado_initializeNodesByForwardSimulation();
 
   return RET;
-}
+}  // initNMPC
 
 
 void FwNMPC::initACADOVars() {
@@ -161,7 +163,7 @@ void FwNMPC::initACADOVars() {
   }
   // ROS_INFO_STREAM("State set to: vt: " << acadoVariables.x[4]);
   ROS_INFO_STREAM("State set to: Psi: " << X[0] << " Theta: " << X[1] << " gamma: " << X[2] << " psi: " << X[3] << " vt: " << X[4] << " psi_des: " << X[5]);
-}
+}  // initACADOVars
 
 
 int FwNMPC::nmpcIteration() {
@@ -179,71 +181,60 @@ int FwNMPC::nmpcIteration() {
   // initialize returns //
   int RET[2] = { 0, 0 };
 
-  // check mode //  //TODO: should include some checking to make sure not on ground/ other singularity ridden cases //TODO: this does not cover RC loss..
-  /*
-  if (last_ctrl_mode != 5)
-    bModeChanged = true;
-  last_ctrl_mode = subs_.aslctrl_data.aslctrl_mode;
-  */
-  if (true) {  // subs_.aslctrl_data.aslctrl_mode == 5
+  // start update timer --> //
+  ros::Time t_update_start = ros::Time::now();
 
-    // start update timer --> //
-    ros::Time t_update_start = ros::Time::now();
+  int obctrl_status = 0;
 
-    int obctrl_status = 0;
+  // regular update
+  // update ACADO states/references/weights //
+  updateACADO_X0();
+  updateACADO_W();
 
-    // regular update
-    // update ACADO states/references/weights //
-    updateACADO_X0();
-    updateACADO_W();
+  // update time in us <-- //
+  t_elapsed = ros::Time::now() - t_update_start;
+  t_update = t_elapsed.toNSec() / 1000;
 
-    // update time in us <-- //
-    t_elapsed = ros::Time::now() - t_update_start;
-    t_update = t_elapsed.toNSec() / 1000;
+  // update ACADO online data //
+  updateACADO_OD();
 
-    // update ACADO online data //
-    updateACADO_OD();
+  // start nmpc solve timer --> //
+  ros::Time t_solve_start = ros::Time::now();
 
-    // start nmpc solve timer --> //
-    ros::Time t_solve_start = ros::Time::now();
-
-    // ROS_INFO_STREAM("State before preparation: vt: " << acadoVariables.x[4]);
-    // Prepare first step //
-    RET[0] = acado_preparationStep();
-    if (RET[0] != 0) {
-      ROS_ERROR("nmpcIteration: preparation step error, code %d", RET[0]);
-      obctrl_status = RET[0];
-    }
-    // ROS_INFO_STREAM("State before feedback: vt: " << acadoVariables.x[4]);
-
-    // Perform the feedback step. //
-    RET[1] = acado_feedbackStep();
-    if (RET[1] != 0) {
-      ROS_ERROR("nmpcIteration: feedback step error, code %d", RET[1]);
-      obctrl_status = RET[1];  //TODO: find a way that doesnt overwrite the other one...
-    }
-    // ROS_INFO_STREAM("State after feedback: vt: " << acadoVariables.x[4]);
-
-    // solve time in us <-- //
-    t_elapsed = ros::Time::now() - t_solve_start;
-    t_solve = t_elapsed.toNSec() / 1000;
-
-    // nmpc iteration time in us (approximate for publishing to pixhawk) <-- //
-    t_elapsed = ros::Time::now() - t_iter_start;
-    uint64_t t_iter_approx = t_elapsed.toNSec() / 1000;
-    ROS_INFO_STREAM("NMPC Step completed took: " << t_iter_approx*0.001 << " ms");
-
-    // publish control action //
-    publishControls();
-
-    //TODO: this should be interpolated in the event of Tnmpc ~= Tfcall //TODO: should this be before the feedback step?
-    // Optional: shift the initialization (look in acado_common.h). //
-    acado_shiftStates(2, 0, 0);
-    acado_shiftControls(0);
-  } else {
-    // send "alive" status
-    publishControls();  // zero control input
+  // ROS_INFO_STREAM("State before preparation: vt: " << acadoVariables.x[4]);
+  // Prepare first step //
+  RET[0] = acado_preparationStep();
+  if (RET[0] != 0) {
+    ROS_ERROR("nmpcIteration: preparation step error, code %d", RET[0]);
+    obctrl_status = RET[0];
   }
+  // ROS_INFO_STREAM("State before feedback: vt: " << acadoVariables.x[4]);
+
+  // Perform the feedback step. //
+  RET[1] = acado_feedbackStep();
+  if (RET[1] != 0) {
+    ROS_ERROR("nmpcIteration: feedback step error, code %d", RET[1]);
+    obctrl_status = RET[1];  //TODO: find a way that doesnt overwrite the other one...
+  }
+  // ROS_INFO_STREAM("State after feedback: vt: " << acadoVariables.x[4]);
+
+  // solve time in us <-- //
+  t_elapsed = ros::Time::now() - t_solve_start;
+  t_solve = t_elapsed.toNSec() / 1000;
+
+  // nmpc iteration time in us (approximate for publishing to pixhawk) <-- //
+  t_elapsed = ros::Time::now() - t_iter_start;
+  uint64_t t_iter_approx = t_elapsed.toNSec() / 1000;
+  ROS_INFO_STREAM("NMPC Step completed took: " << t_iter_approx*0.001 << " ms");
+
+  // publish control action //
+  publishControls();
+
+  //TODO: this should be interpolated in the event of Tnmpc ~= Tfcall //TODO: should this be before the feedback step?
+  // Optional: shift the initialization (look in acado_common.h). //
+  acado_shiftStates(2, 0, 0);
+  acado_shiftControls(0);
+
   publishReference();
 
   // publish ACADO variables //  // should this go outside?
@@ -254,7 +245,7 @@ int FwNMPC::nmpcIteration() {
 
   // return status //
   return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;  // perhaps a better reporting method?
-}
+}  // nmpcIteration
 
 
 void FwNMPC::updateACADO_X0() {
@@ -566,6 +557,13 @@ void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   current_state[x_index.vt] = std::max(vt,5.0);  // set sphere velocity with lower bound
 }
 
+void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
+  msg->mode;
+}
+
+void FwNMPC::vfrHudCb(const mavros_msgs::VFR_HUD::ConstPtr& msg) {
+  airspeed = msg->airspeed;
+}
 
 double FwNMPC::getLoopRate() {
   return LOOP_RATE;
