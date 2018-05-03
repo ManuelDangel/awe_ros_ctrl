@@ -30,6 +30,7 @@ FwNMPC::FwNMPC()  // CONSTRUCTOR
   pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
   reference_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/reference", 1);
   state_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/state", 1);
+  thrust_pub_ = nmpc_.advertise<std_msgs::Float64>("/mavros/setpoint_attitude/thrust", 1);
 
   // Initialize NMPC Indexes //
 
@@ -87,6 +88,11 @@ FwNMPC::FwNMPC()  // CONSTRUCTOR
   nmpc_.param<double>("/nmpc/cost_control", cost.control, 1.0);
   nmpc_.param<double>("/nmpc/cost_tracking", cost.tracking, 100.0);
   nmpc_.param<double>("/nmpc/cost_power", cost.power, 0.0);
+
+  // Initialize Thrust Controller
+  nmpc_.param<double>("/nmpc/thrust_max", thrust_max, 0.0);
+  nmpc_.param<double>("/nmpc/thrust_0_speed", thrust_0_speed, 20.0);
+  nmpc_.param<double>("/nmpc/thrust_p", thrust_p, 0.1);
 
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
@@ -316,7 +322,7 @@ void FwNMPC::updateACADO_OD() {
       } else if (j == p_index.thrust_power) {
         // Thrust calculation!
         // Set Thrust full at vt<=10 and none at vt>=20
-        acadoVariables.od[i * NOD + j] = parameter[j]* std::min(1.0, std::max(0.0, 20-acadoVariables.x[i * NX + x_index.vt]*0.1));
+        acadoVariables.od[i * NOD + j] = parameter[j]* std::min(thrust_max, std::max(0.0, (thrust_0_speed-acadoVariables.x[i * NX + x_index.vt])*thrust_p));
       } else {
         acadoVariables.od[i * NOD + j] = parameter[j];
       }
@@ -488,6 +494,12 @@ void FwNMPC::publishReference() {
   reference_pub_.publish(reference_);  // Pubish NMPC Reference
 }
 
+void FwNMPC::publishThrottle() {  // Throttle Controller
+  // This function is called directly from the VFR_HUD (airspeed) Callback
+  thrust_.data = std::min(thrust_max,std::max(0.0,(thrust_0_speed-airspeed)*thrust_p));
+  thrust_pub_.publish(thrust_);
+}
+
 void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   /*X0[NX] = { parameter[p_index.circle_azimut],
         parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
@@ -578,6 +590,7 @@ void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
 
 void FwNMPC::vfrHudCb(const mavros_msgs::VFR_HUD::ConstPtr& msg) {
   airspeed = msg->airspeed;
+  publishThrottle();
 }
 
 double FwNMPC::getLoopRate() {

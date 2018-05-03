@@ -17,6 +17,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/VFR_HUD.h>
+#include <std_msgs/Float64.h>  // <mavros_msgs/Thrust.h>
 
 // general includes
 #include "math.h"
@@ -91,6 +92,7 @@ class FwNMPC {
   /* publishing encapsulation */
   void publishControls();
   void publishReference();
+  void publishThrottle();
 
   int loop_counter;
 
@@ -127,6 +129,8 @@ class FwNMPC {
   nav_msgs::Path reference_;
   ros::Publisher state_pub_;  // for logging
   geometry_msgs::PoseStamped state_;
+  ros::Publisher thrust_pub_;  // thrust control
+  std_msgs::Float64 thrust_;
   /* time keeping */
   ros::Time t_lastctrl;
 
@@ -140,6 +144,9 @@ class FwNMPC {
   int FAKE_SIGNALS;
   bool coordinate_flip;
   double angle_of_attack_deg;
+  double thrust_max;
+  double thrust_0_speed;
+  double thrust_p;
 
   /* Cost Tuning */
   Cost cost;
