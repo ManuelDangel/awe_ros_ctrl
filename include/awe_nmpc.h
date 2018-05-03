@@ -149,6 +149,7 @@ class FwNMPC {
   bool reset_control_failure;  // reset controller if there is NaN's
   bool reset_solution_bad;  // reset controller if KKT are really bad
   bool reset_no_offboard_mode;  // reset periodically if not in offboard control mode
+  bool offboard_mode;  // true if offboard mode is active
 
   /* node functions */
   void shutdown();

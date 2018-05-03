@@ -106,10 +106,11 @@ FwNMPC::FwNMPC() {  // CONSTRUCTOR
   current_state[0] = parameter[p_index.circle_azimut];
   current_state[1] = parameter[p_index.circle_elevation]
       + parameter[p_index.circle_angle];
-  current_state[2] = -0.5 * M_PI;
-  current_state[3] = 0.0;
-  current_state[4] = 50;
-  current_state[5] = 0.0;
+  current_state[2] = 0.5 * M_PI;
+  current_state[3] = parameter[p_index.circle_angle];
+  current_state[4] = 20;
+  current_state[5] = parameter[p_index.circle_angle];
+  // roll gets init to circle_angle as a good guess for clockwise circle
   current_radius = parameter[p_index.r];  // initialize radius
   airspeed = 0;
 
@@ -117,6 +118,7 @@ FwNMPC::FwNMPC() {  // CONSTRUCTOR
   reset_control_failure = false;
   reset_solution_bad = false;
   reset_no_offboard_mode = false;
+  offboard_mode = false;
 }  // constructor
 
 int FwNMPC::initNMPC() {
@@ -133,9 +135,6 @@ int FwNMPC::initNMPC() {
 }  // initNMPC
 
 void FwNMPC::initACADOVars() {
-  double X[NX] = { parameter[p_index.circle_azimut], parameter[p_index
-      .circle_elevation] + parameter[p_index.circle_angle], -0.5 * M_PI, 0.0,
-      50.0, 0.0 };
   double U[NU] = { 0.0, 0.0, 0.0 };
   // double OD[NOD];
   double Y[NY] = { 0.0 };  // Set all entries to 0
@@ -147,7 +146,7 @@ void FwNMPC::initACADOVars() {
   // states
   for (int i = 0; i < N + 1; ++i) {
     for (int j = 0; j < NX; ++j)
-      acadoVariables.x[i * NX + j] = X[j];
+      acadoVariables.x[i * NX + j] = current_state[j];
   }
 
   // controls
@@ -177,10 +176,6 @@ void FwNMPC::initACADOVars() {
   for (int i = 0; i < NYN; ++i) {
     acadoVariables.WN[i * NYN + i] = WN[i];  // fill diagonals
   }
-  // ROS_INFO_STREAM("State set to: vt: " << acadoVariables.x[4]);
-  ROS_INFO_STREAM("State set to:"
-      " Psi: " << X[0] << " Theta: " << X[1] << " gamma: " << X[2] <<
-      " phi: " << X[3] << " vt: " << X[4] << " phi_des: " << X[5]);
 }  // initACADOVars
 
 int FwNMPC::nmpcIteration() {
@@ -252,11 +247,17 @@ void FwNMPC::updateACADO_X0() {
     for (int i = 0; i < NX; ++i) {  // internal horizon propagation:
       current_state[i] = acadoVariables.x[i + NX];
     }
+  } else if (offboard_mode) {
+    // internal horizon propagation of roll states
+    current_state[x_index.phi] = acadoVariables.x[x_index.phi + NX];
+    current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des + NX];
+  } else {  // real flying but not controlling
+    // keep roll states at a good guess for clockwise circle
+    current_state[x_index.phi] = parameter[p_index.circle_angle];
+    current_state[x_index.phi_des] = parameter[p_index.circle_angle];
   }
 
-  // internal horizon propagation of roll states
-  current_state[x_index.phi] = acadoVariables.x[x_index.phi + NX];
-  current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des + NX];
+
 
   // catch and safe controller failure NaN's and extreme high KKT
   reset_control_failure = isnan(current_state[x_index.phi_des]);
@@ -277,8 +278,8 @@ void FwNMPC::updateACADO_X0() {
     reset_no_offboard_mode = false;
     ROS_WARN("NMPC restarting...");
 
-    current_state[x_index.phi_des] = 0;
-    current_state[x_index.phi] = 0;
+    current_state[x_index.phi_des] = parameter[p_index.circle_angle];
+    current_state[x_index.phi] = parameter[p_index.circle_angle];
     // controls
     double U[NU] = { 0.0, 0.0, 0.0 };
     for (int i = 0; i < N; ++i) {  // set all control back to 0
@@ -581,7 +582,9 @@ void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
   ROS_INFO_STREAM("Received Pixhawk Mode: " <<  msg->mode);
   if (msg->mode == "OFFBOARD") {
     reset_no_offboard_mode = false;
+    offboard_mode = true;
   } else {
+    offboard_mode = false;
     if (static_cast<double>(acado_getObjective()) > 100.0) {
       // Reset only if we are not already tracking the circle well
       reset_no_offboard_mode = true;
@@ -653,4 +656,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }  // main
-
