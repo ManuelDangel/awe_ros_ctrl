@@ -4,6 +4,7 @@
     <param name="/nmpc/loop_rate" type="double" value="10.0" />
     <param name="/nmpc/time_step" type="double" value="0.1" />
     <param name="/nmpc/coordinate_flip" type="bool" value="false" />
+    <param name="/nmpc/fake_signals" type="bool" value="false" />
 
     <param name="/nmpc/param_vw" type="double" value="5.0" />
     <param name="/nmpc/param_r" type="double" value="100.0" />
@@ -14,7 +15,7 @@
     <param name="/nmpc/param_m" type="double" value="2.0" />
     <param name="/nmpc/param_cla" type="double" value="0.2" />
     <param name="/nmpc/param_cld" type="double" value="0.025" />
-    <param name="/nmpc/param_phi_freq" type="double" value="2.7" />
+    <param name="/nmpc/param_phi_freq" type="double" value="5.0" />
     <param name="/nmpc/param_wind_azimut" type="double" value="0.0" />
     <param name="/nmpc/param_thrust_power" type="double" value="0.0" />
     <param name="/nmpc/param_weight_tracking" type="double" value="1.0" />

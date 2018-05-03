@@ -54,10 +54,6 @@ struct Pindex {  // Lists the indexes of the different online parameters
   cla, cda, phi_freq, wind_azimut, thrust_power, weight_tracking, weight_power;
 };
 
-struct Cost {  // Tuning of the cost function
-  double control, tracking, power;
-};
-
 /*
  * @brief fw_nmpc class
  *
@@ -92,7 +88,7 @@ class FwNMPC {
   /* publishing encapsulation */
   void publishControls();
   void publishReference();
-  void publishThrottle();
+  void publishThrust();
 
   int loop_counter;
 
@@ -134,22 +130,20 @@ class FwNMPC {
   /* time keeping */
   ros::Time t_lastctrl;
 
-  /* controller switch */
-  bool bModeChanged;
-  int last_ctrl_mode;
-
   /* settings */
   double LOOP_RATE;
   double TSTEP;
-  int FAKE_SIGNALS;
-  bool coordinate_flip;
+  bool FAKE_SIGNALS;
+  bool COORDINATE_FLIP;
   double angle_of_attack_deg;
   double thrust_max;
   double thrust_0_speed;
   double thrust_p;
 
   /* Cost Tuning */
-  Cost cost;
+  double cost_control;
+  double cost_tracking;
+  double cost_power;
 
   /* NMPC Resets */
   bool reset_control_failure;  // reset controller if there is NaN's

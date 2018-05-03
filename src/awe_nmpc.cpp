@@ -4,36 +4,29 @@
 
 namespace fw_nmpc {
 
-FwNMPC::FwNMPC()  // CONSTRUCTOR
-    : LOOP_RATE(10.0),  // MAGIC NUMBER
-      TSTEP(0.1),  // MAGIC NUMBER
-      FAKE_SIGNALS(0),
-      t_lastctrl { ros::Time::now() },
-      bModeChanged(false),
-      last_ctrl_mode(0),
-      loop_counter(0),
-      coordinate_flip(false) {
+FwNMPC::FwNMPC() {  // CONSTRUCTOR
   ROS_INFO("Instance of NMPC created");
+
   /* subscribers */
   position_sub_ = nmpc_.subscribe("/mavros/local_position/pose", 1,
                                   &FwNMPC::positionCb, this);
   velocity_sub_ = nmpc_.subscribe("/mavros/local_position/velocity", 1,
                                   &FwNMPC::velocityCb, this);
-  state_sub_ = nmpc_.subscribe("/mavros/state", 1,
-                                  &FwNMPC::stateCb, this);
-  vfr_hud_sub_ = nmpc_.subscribe("/mavros/vfr_hud", 1,
-                                  &FwNMPC::vfrHudCb, this);
+  state_sub_ = nmpc_.subscribe("/mavros/state", 1, &FwNMPC::stateCb, this);
+  vfr_hud_sub_ = nmpc_.subscribe("/mavros/vfr_hud", 1, &FwNMPC::vfrHudCb, this);
 
   /* publishers */
-  setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/mavros/setpoint_attitude/attitude", 1);
+  setpoint_attitude_attitude_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>(
+      "/mavros/setpoint_attitude/attitude", 1);
   path_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/nmpc_predicted", 1);
-  pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/aircraft_pose", 1);
+  pose_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>(
+      "/nmpc/aircraft_pose", 1);
   reference_pub_ = nmpc_.advertise<nav_msgs::Path>("/nmpc/reference", 1);
   state_pub_ = nmpc_.advertise<geometry_msgs::PoseStamped>("/nmpc/state", 1);
-  thrust_pub_ = nmpc_.advertise<std_msgs::Float64>("/mavros/setpoint_attitude/thrust", 1);
+  thrust_pub_ = nmpc_.advertise<std_msgs::Float64>(
+      "/mavros/setpoint_attitude/thrust", 1);
 
-  // Initialize NMPC Indexes //
-
+  /* Initialize NMPC Indexes */
   x_index.psi = 0;  // states
   x_index.theta = 1;
   x_index.gamma = 2;
@@ -58,46 +51,62 @@ FwNMPC::FwNMPC()  // CONSTRUCTOR
   p_index.weight_tracking = 12;
   p_index.weight_power = 13;
 
-  // Initialize NMPC Parameters from launch file //
-  nmpc_.param<double>("/nmpc/param_vw", parameter[p_index.vw], 10.0);
-  nmpc_.param<double>("/nmpc/param_r", parameter[p_index.r], 220.0);
-  nmpc_.param<double>("/nmpc/param_r_dot", parameter[p_index.r_dot], 10.0*0.23);
-  nmpc_.param<double>("/nmpc/param_circle_azimut", parameter[p_index.circle_azimut], 0.0);
-  nmpc_.param<double>("/nmpc/param_circle_elevation", parameter[p_index.circle_elevation], 30.0 / 180 * M_PI);
-  nmpc_.param<double>("/nmpc/param_circle_angle", parameter[p_index.circle_angle], atan(75.0 / 220.0));
-  nmpc_.param<double>("/nmpc/param_m", parameter[p_index.m], 27.53);
-  nmpc_.param<double>("/nmpc/param_cla", parameter[p_index.cla], 0.9);
-  nmpc_.param<double>("/nmpc/param_cda", parameter[p_index.cda], 0.07);
-  nmpc_.param<double>("/nmpc/param_phi_freq", parameter[p_index.phi_freq], 2.7);
-  nmpc_.param<double>("/nmpc/param_wind_azimut", parameter[p_index.wind_azimut], 0.0);
-  nmpc_.param<double>("/nmpc/param_thrust_power", parameter[p_index.thrust_power], 0.0);
-  nmpc_.param<double>("/nmpc/param_weight_tracking", parameter[p_index.weight_tracking], 1.0);
-  nmpc_.param<double>("/nmpc/param_weight_power", parameter[p_index.weight_power], 1.0);
+  /* Initialize NMPC Parameters from launch file */
+  nmpc_.param<double>("/nmpc/param_vw",
+                      parameter[p_index.vw], 10.0);
+  nmpc_.param<double>("/nmpc/param_r",
+                      parameter[p_index.r], 220.0);
+  nmpc_.param<double>("/nmpc/param_r_dot",
+                      parameter[p_index.r_dot], 10.0*0.23);
+  nmpc_.param<double>("/nmpc/param_circle_azimut",
+                      parameter[p_index.circle_azimut], 0.0);
+  nmpc_.param<double>("/nmpc/param_circle_elevation",
+                      parameter[p_index.circle_elevation], 30.0 / 180 * M_PI);
+  nmpc_.param<double>("/nmpc/param_circle_angle",
+                      parameter[p_index.circle_angle], atan(75.0 / 220.0));
+  nmpc_.param<double>("/nmpc/param_m",
+                      parameter[p_index.m], 27.53);
+  nmpc_.param<double>("/nmpc/param_cla",
+                      parameter[p_index.cla], 0.9);
+  nmpc_.param<double>("/nmpc/param_cda",
+                      parameter[p_index.cda], 0.07);
+  nmpc_.param<double>("/nmpc/param_phi_freq",
+                      parameter[p_index.phi_freq], 2.7);
+  nmpc_.param<double>("/nmpc/param_wind_azimut",
+                      parameter[p_index.wind_azimut], 0.0);
+  nmpc_.param<double>("/nmpc/param_thrust_power",
+                      parameter[p_index.thrust_power], 0.0);
+  nmpc_.param<double>("/nmpc/param_weight_tracking",
+                      parameter[p_index.weight_tracking], 1.0);
+  nmpc_.param<double>("/nmpc/param_weight_power",
+                      parameter[p_index.weight_power], 1.0);
 
-  // Initialize Parameters from Launch File //
-  // get loop rate
-  nmpc_.getParam("/nmpc/loop_rate", LOOP_RATE);
-  // get model discretization step
-  nmpc_.getParam("/nmpc/time_step", TSTEP);
-  // fake signals
-  nmpc_.getParam("/nmpc/fake_signals", FAKE_SIGNALS);
-  nmpc_.getParam("/nmpc/coordinate_flip", coordinate_flip);
+  // Initialize Settings from Launch File //
+  nmpc_.param<double>("/nmpc/loop_rate", LOOP_RATE, 10.0);
+  nmpc_.param<double>("/nmpc/time_step", TSTEP, 0.1);
+  nmpc_.param<bool>("/nmpc/fake_signals", FAKE_SIGNALS, false);
+  nmpc_.param<bool>("/nmpc/coordinate_flip", COORDINATE_FLIP, false);
   nmpc_.param<double>("/nmpc/angle_of_attack_deg", angle_of_attack_deg, 0.0);
 
   // Initialize Cost Function Parameters from Launch File
-  nmpc_.param<double>("/nmpc/cost_control", cost.control, 1.0);
-  nmpc_.param<double>("/nmpc/cost_tracking", cost.tracking, 100.0);
-  nmpc_.param<double>("/nmpc/cost_power", cost.power, 0.0);
+  nmpc_.param<double>("/nmpc/cost_control", cost_control, 1.0);
+  nmpc_.param<double>("/nmpc/cost_tracking", cost_tracking, 100.0);
+  nmpc_.param<double>("/nmpc/cost_power", cost_power, 0.0);
 
   // Initialize Thrust Controller
   nmpc_.param<double>("/nmpc/thrust_max", thrust_max, 0.0);
   nmpc_.param<double>("/nmpc/thrust_0_speed", thrust_0_speed, 20.0);
   nmpc_.param<double>("/nmpc/thrust_p", thrust_p, 0.1);
 
+  // Initialize Settings
+  t_lastctrl = ros::Time::now();
+  loop_counter = 0;
+
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
-  current_state[1] = parameter[p_index.circle_elevation]+parameter[p_index.circle_angle];
-  current_state[2] = -0.5*M_PI;
+  current_state[1] = parameter[p_index.circle_elevation]
+      + parameter[p_index.circle_angle];
+  current_state[2] = -0.5 * M_PI;
   current_state[3] = 0.0;
   current_state[4] = 50;
   current_state[5] = 0.0;
@@ -110,7 +119,6 @@ FwNMPC::FwNMPC()  // CONSTRUCTOR
   reset_no_offboard_mode = false;
 }  // constructor
 
-
 int FwNMPC::initNMPC() {
   // Initialize ACADO variables
   initACADOVars();
@@ -118,22 +126,21 @@ int FwNMPC::initNMPC() {
 
   // Initialize the solver.
   int RET = acado_initializeSolver();
-  // Initialize all nodes with a forward simulation with default (0) control input
+  // Initialize all nodes with a forward sim with default (0) control input
   acado_initializeNodesByForwardSimulation();
 
   return RET;
 }  // initNMPC
 
-
 void FwNMPC::initACADOVars() {
-  double X[NX] = { parameter[p_index.circle_azimut],
-      parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
-      -0.5*M_PI, 0.0, 50.0, 0.0 };
+  double X[NX] = { parameter[p_index.circle_azimut], parameter[p_index
+      .circle_elevation] + parameter[p_index.circle_angle], -0.5 * M_PI, 0.0,
+      50.0, 0.0 };
   double U[NU] = { 0.0, 0.0, 0.0 };
   // double OD[NOD];
-  double Y[NY] = {0.0};  // Set all entries to 0
-  double W[NY] = { cost.tracking, cost.power, cost.control, 100.0, 200.0};
-  double WN[NY] = { cost.tracking, 0.0, cost.power };
+  double Y[NY] = { 0.0 };  // Set all entries to 0
+  double W[NY] = { cost_tracking, cost_power, cost_control, 100.0, 200.0 };
+  double WN[NY] = { cost_tracking, 0.0, cost_power };
 
   // these set a constant value for each variable through the horizon //
 
@@ -161,37 +168,33 @@ void FwNMPC::initACADOVars() {
       acadoVariables.y[i * NY + j] = Y[j];
   }
   // weights
-  memset(acadoVariables.W, 0, sizeof(acadoVariables.W));  // fill all with zero
+  memset(acadoVariables.W, 0, sizeof(acadoVariables.W));  // fill 0
   for (int i = 0; i < NY; ++i) {
     acadoVariables.W[i * NY + i] = W[i];  // fill diagonals
   }
 
-  memset(acadoVariables.WN, 0, sizeof(acadoVariables.WN));  // fill all with zero
+  memset(acadoVariables.WN, 0, sizeof(acadoVariables.WN));  // fill 0
   for (int i = 0; i < NYN; ++i) {
     acadoVariables.WN[i * NYN + i] = WN[i];  // fill diagonals
   }
   // ROS_INFO_STREAM("State set to: vt: " << acadoVariables.x[4]);
-  ROS_INFO_STREAM("State set to: Psi: " << X[0] << " Theta: " << X[1] << " gamma: " << X[2] << " psi: " << X[3] << " vt: " << X[4] << " psi_des: " << X[5]);
+  ROS_INFO_STREAM("State set to:"
+      " Psi: " << X[0] << " Theta: " << X[1] << " gamma: " << X[2] <<
+      " phi: " << X[3] << " vt: " << X[4] << " phi_des: " << X[5]);
 }  // initACADOVars
 
-
 int FwNMPC::nmpcIteration() {
-  ROS_INFO_STREAM("Start NMPC Iteration with State: \n Psi: " << current_state[0] << "\n Theta: " << current_state[1] << "\n gamma: " << current_state[2] << "\n psi: " << current_state[3] << "\n vt: " << current_state[4] << "\n psi_des: " << current_state[5]);
+  ROS_INFO_STREAM("Start NMPC Iteration with State: "
+      "\n Psi: " << current_state[0] << "\n Theta: " << current_state[1] <<
+      "\n gamma: " << current_state[2] << "\n psi: " << current_state[3] <<
+      "\n vt: " << current_state[4] << "\n psi_des: " << current_state[5]);
   // elapsed time reusable var //
   ros::Duration t_elapsed;
   // start nmpc iteration timer --> //
   ros::Time t_iter_start = ros::Time::now();
-  // various timer initializations //
-  uint64_t t_ctrl = 0;  // time elapsed since last control action was published (stays zero if not in auto mode)
-  uint64_t t_solve = 0;  // time elapsed during nmpc preparation and feedback step (solve time)
-  uint64_t t_update = 0;  // time elapsed during array updates
-  uint64_t t_wp_man = 0;  // time elapsed during waypoint management
 
   // initialize returns //
   int RET[2] = { 0, 0 };
-
-  // start update timer --> //
-  ros::Time t_update_start = ros::Time::now();
 
   int obctrl_status = 0;
 
@@ -199,10 +202,6 @@ int FwNMPC::nmpcIteration() {
   // update ACADO states/references/weights //
   updateACADO_X0();
   updateACADO_W();
-
-  // update time in us <-- //
-  t_elapsed = ros::Time::now() - t_update_start;
-  t_update = t_elapsed.toNSec() / 1000;
 
   // update ACADO online data //
   updateACADO_OD();
@@ -226,7 +225,6 @@ int FwNMPC::nmpcIteration() {
 
   // solve time in us <-- //
   t_elapsed = ros::Time::now() - t_solve_start;
-  t_solve = t_elapsed.toNSec() / 1000;
 
   // nmpc iteration time in us (approximate for publishing to pixhawk) <-- //
   t_elapsed = ros::Time::now() - t_iter_start;
@@ -242,31 +240,23 @@ int FwNMPC::nmpcIteration() {
 
   publishReference();
 
-  // publish ACADO variables //  // should this go outside?
-  // publishAcadoVars();
-
   // publish nmpc info //
   // publishNmpcInfo(t_iter_start, t_ctrl, t_solve, t_update, t_wp_man);
 
   // return status //
-  return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;  // perhaps a better reporting method?
+  return (RET[0] != 0 || RET[1] != 0) ? 1 : 0;
 }  // nmpcIteration
 
-
 void FwNMPC::updateACADO_X0() {
-  double X0[NX] = { parameter[p_index.circle_elevation],
-      parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
-      -0.5*M_PI, 0.0, 20.0, 0.0 };
-
-  // internal horizon propagation:
-  /*
-  for (int i = 0; i < NX; ++i) {
-    X0[i] = acadoVariables.x[i+NX];
+  if (FAKE_SIGNALS) {  // If we "simulate" the state is set to MPC belief
+    for (int i = 0; i < NX; ++i) {  // internal horizon propagation:
+      current_state[i] = acadoVariables.x[i + NX];
+    }
   }
-  */
+
   // internal horizon propagation of roll states
-  current_state[x_index.phi] = acadoVariables.x[x_index.phi+NX];
-  current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des+NX];
+  current_state[x_index.phi] = acadoVariables.x[x_index.phi + NX];
+  current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des + NX];
 
   // catch and safe controller failure NaN's and extreme high KKT
   reset_control_failure = isnan(current_state[x_index.phi_des]);
@@ -278,7 +268,8 @@ void FwNMPC::updateACADO_X0() {
     } else if (reset_solution_bad) {
       ROS_ERROR("Controller Failure, KKT too high!");
     } else {
-      ROS_WARN("Reinitializing Controller because Offboard control mode is not switched on");
+      ROS_WARN("Reinitializing Controller "
+          "because Offboard control mode is not switched on");
       // This is to try to get out of local minimas in the solution
       // Typically the Horizon used to get stuck in a solution running
       // the opposite direction of the circle
@@ -308,7 +299,7 @@ void FwNMPC::updateACADO_X0() {
     int RET = acado_initializeSolver();
     acado_initializeNodesByForwardSimulation();
   }
-}
+}  // updateACADO_X0
 
 
 void FwNMPC::updateACADO_OD() {
@@ -316,18 +307,22 @@ void FwNMPC::updateACADO_OD() {
   for (int i = 0; i < N + 1; ++i) {
     for (int j = 0; j < NOD; ++j)
       if (j == p_index.r) {
-        acadoVariables.od[i * NOD + j] = current_radius+parameter[p_index.r_dot]*j*TSTEP;
+        acadoVariables.od[i * NOD + j] =
+            current_radius+parameter[p_index.r_dot]*j*TSTEP;
       } else if (j == p_index.circle_angle) {  // sqrt cone shaped reference
-        acadoVariables.od[i * NOD + j] = parameter[j]*sqrt(parameter[p_index.r]/acadoVariables.od[i*NOD+p_index.r]);
+        acadoVariables.od[i * NOD + j] = parameter[j] *
+            sqrt(parameter[p_index.r]/acadoVariables.od[i*NOD+p_index.r]);
       } else if (j == p_index.thrust_power) {
         // Thrust calculation!
         // Set Thrust full at vt<=10 and none at vt>=20
-        acadoVariables.od[i * NOD + j] = parameter[j]* std::min(thrust_max, std::max(0.0, (thrust_0_speed-acadoVariables.x[i * NX + x_index.vt])*thrust_p));
+        acadoVariables.od[i * NOD + j] =
+            parameter[j]* std::min(thrust_max, std::max(0.0,  // saturation
+            (thrust_0_speed-acadoVariables.x[i * NX + x_index.vt])*thrust_p));
       } else {
         acadoVariables.od[i * NOD + j] = parameter[j];
       }
   }
-}
+}  // updateACADO_OD
 
 
 void FwNMPC::updateACADO_W() {
@@ -346,7 +341,7 @@ void FwNMPC::updateACADO_W() {
     acadoVariables.WN[i * NYN + i] = W[i];
   }
   */
-}
+}  // updateACADO_W
 
 
 void FwNMPC::publishControls() {
@@ -354,7 +349,8 @@ void FwNMPC::publishControls() {
   for (int i = 0; i < NU; ++i)
     ctrl[i] = acadoVariables.u[i];
 
-  ROS_INFO_STREAM("Control_Publish: vt at 0: " << acadoVariables.x[4] << " vt at 10: " << acadoVariables.x[4+6*10]);
+  ROS_INFO_STREAM("Control_Publish: vt at 0: " << acadoVariables.x[4] <<
+                  " vt at 10: " << acadoVariables.x[4+6*10]);
   ROS_INFO_STREAM("Control_Publish: rr at 0: " << ctrl[0]);
 
   double kkt = static_cast<double>(acado_getKKT());
@@ -362,23 +358,24 @@ void FwNMPC::publishControls() {
   ROS_INFO("KKT: %f Obj: %f, ", kkt, obj);
 
   path_predicted_.header.frame_id = "world";
-  path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N+1);
+  path_predicted_.poses = std::vector<geometry_msgs::PoseStamped>(N + 1);
   // using the first one to draw a line to visualize the Tether
-  tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0, 1.0), path_predicted_.poses[0].pose.orientation);
+  tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0, 1.0),
+                        path_predicted_.poses[0].pose.orientation);
 
   tf::Matrix3x3 attitude_local;
   attitude_local.setEulerYPR(0.0, angle_of_attack_deg/180*M_PI, 0.0);
   tf::Quaternion attitude_quat_enu;
   attitude_local.getRotation(attitude_quat_enu);
-  tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[0].pose.orientation);
-
+  tf::quaternionTFToMsg(attitude_quat_enu,
+                        path_predicted_.poses[0].pose.orientation);
 
   for (int i = 0; i < N; i++) {
     // Calculate Planned Aircraft Positions
     const double & psi = acadoVariables.x[x_index.psi+NX*i];
     const double & theta = acadoVariables.x[x_index.theta+NX*i];
     const double & r = acadoVariables.od[p_index.r+NOD*i];
-    if (coordinate_flip) {
+    if (COORDINATE_FLIP) {
       path_predicted_.poses[i+1].pose.position.x = r*cos(psi)*cos(theta);
       path_predicted_.poses[i+1].pose.position.y = -r*sin(theta);
       path_predicted_.poses[i+1].pose.position.z = r*sin(psi)*cos(theta);
@@ -402,8 +399,12 @@ void FwNMPC::publishControls() {
            cos(theta)*cos(gamma),
           -cos(theta)*sin(gamma),
           -sin(theta));
-    tf::Vector3 wind_enu(acadoVariables.od[p_index.vw+NOD*i]*cos(acadoVariables.od[p_index.wind_azimut+NOD*i]),
-                         acadoVariables.od[p_index.vw+NOD*i]*sin(acadoVariables.od[p_index.wind_azimut+NOD*i]), 0.0);
+    tf::Vector3 wind_enu(
+        acadoVariables.od[p_index.vw + NOD * i]
+            * cos(acadoVariables.od[p_index.wind_azimut + NOD * i]),
+        acadoVariables.od[p_index.vw + NOD * i]
+            * sin(acadoVariables.od[p_index.wind_azimut + NOD * i]),
+        0.0);
     tf::Vector3 wind_local;
     wind_local = enu2local_rot.transpose() * wind_enu;  // Tf wind to local
     tf::Vector3 groundspeed_local(vt, 0, -r_dot);
@@ -414,10 +415,11 @@ void FwNMPC::publishControls() {
                                pow(airspeed_local.z(), 2));
     tf::Matrix3x3 attitude_local;
     attitude_local.setEulerYPR(atan(airspeed_local.y()/vt),
-                               -asin(airspeed_local.z()/airspeed_abs - angle_of_attack_deg/180.0*M_PI),
+                               -asin(airspeed_local.z()/airspeed_abs
+                                     - angle_of_attack_deg/180.0*M_PI),
                                phi+M_PI);
     tf::Matrix3x3 attitude_enu;
-    if (coordinate_flip) {
+    if (COORDINATE_FLIP) {
       tf::Matrix3x3 flip_rot(1.0, 0.0, 0.0,
                             0.0, 0.0, -1.0,
                             0.0, 1.0, 0.0);
@@ -427,22 +429,19 @@ void FwNMPC::publishControls() {
     }
     tf::Quaternion attitude_quat_enu;
     attitude_enu.getRotation(attitude_quat_enu);
-    tf::quaternionTFToMsg(attitude_quat_enu, path_predicted_.poses[i+1].pose.orientation);
+    tf::quaternionTFToMsg(attitude_quat_enu,
+                          path_predicted_.poses[i+1].pose.orientation);
     if (i == 1) {  // Publish setpoint for low level control
       // Publish also in ENU
       setpoint_attitude_attitude_.header.frame_id = "world";
-      setpoint_attitude_attitude_.pose.position.x = path_predicted_.poses[i+1].pose.position.x;
-      setpoint_attitude_attitude_.pose.position.y = path_predicted_.poses[i+1].pose.position.y;
-      setpoint_attitude_attitude_.pose.position.z = path_predicted_.poses[i+1].pose.position.z;
-      /*
-      tf::Matrix3x3 ned2enu(0.0, 1.0, 0.0,
-                            1.0, 0.0, 0.0,
-                            0.0, 0.0, -1.0);
-      tf::Matrix3x3 attitude_ned = ned2enu * attitude_enu;
-      tf::Quaternion attitude_quat_ned;
-      attitude_enu.getRotation(attitude_quat_ned);
-      */
-      tf::quaternionTFToMsg(attitude_quat_enu, setpoint_attitude_attitude_.pose.orientation);
+      setpoint_attitude_attitude_.pose.position.x =
+          path_predicted_.poses[i+1].pose.position.x;
+      setpoint_attitude_attitude_.pose.position.y =
+          path_predicted_.poses[i+1].pose.position.y;
+      setpoint_attitude_attitude_.pose.position.z =
+          path_predicted_.poses[i+1].pose.position.z;
+      tf::quaternionTFToMsg(attitude_quat_enu,
+                            setpoint_attitude_attitude_.pose.orientation);
     }
   }
   path_pub_.publish(path_predicted_);  // Pubish NMPC Results
@@ -461,9 +460,8 @@ void FwNMPC::publishControls() {
 
   // update last control timestamp / publish elapsed ctrl loop time //
   ros::Duration t_elapsed = ros::Time::now() - t_lastctrl;
-  // t_ctrl = t_elapsed.toNSec() / 1000;  //us
   t_lastctrl = ros::Time::now();
-}
+}  // publishControls
 
 void FwNMPC::publishReference() {
   reference_.header.frame_id = "world";
@@ -471,8 +469,10 @@ void FwNMPC::publishReference() {
   double psi, theta;
   for (int i=0; i < 50; ++i) {
     theta = parameter[p_index.circle_elevation] +
-        parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius)*cos((0.02+0.04*i)*M_PI);
-    psi =  acos((cos(parameter[p_index.circle_angle]*sqrt(parameter[p_index.r]/current_radius))
+        parameter[p_index.circle_angle] *
+        sqrt(parameter[p_index.r]/current_radius)*cos((0.02+0.04*i)*M_PI);
+    psi =  acos((cos(parameter[p_index.circle_angle] *
+                     sqrt(parameter[p_index.r]/current_radius))
         -sin(parameter[p_index.circle_elevation])*sin(theta))
                 /(cos(parameter[p_index.circle_elevation])*cos(theta)));
     if (i < 25) {
@@ -480,7 +480,7 @@ void FwNMPC::publishReference() {
     } else {
       psi = -psi + parameter[p_index.circle_azimut];
     }
-    if (coordinate_flip) {
+    if (COORDINATE_FLIP) {
       reference_.poses[i].pose.position.x = current_radius*cos(psi)*cos(theta);
       reference_.poses[i].pose.position.y = -current_radius*sin(theta);
       reference_.poses[i].pose.position.z = current_radius*sin(psi)*cos(theta);
@@ -489,28 +489,25 @@ void FwNMPC::publishReference() {
       reference_.poses[i].pose.position.y = current_radius*sin(psi)*cos(theta);
       reference_.poses[i].pose.position.z = current_radius*sin(theta);
     }
-    // tf::quaternionTFToMsg(tf::Quaternion(0.0, 0.0, 0.0), reference_.poses[i].pose.orientation);
   }
-  reference_pub_.publish(reference_);  // Pubish NMPC Reference
-}
+  reference_pub_.publish(reference_);  // Publish NMPC Reference
+}  // publishReference
 
-void FwNMPC::publishThrottle() {  // Throttle Controller
+void FwNMPC::publishThrust() {  // Thrust Controller
   // This function is called directly from the VFR_HUD (airspeed) Callback
-  thrust_.data = std::min(thrust_max,std::max(0.0,(thrust_0_speed-airspeed)*thrust_p));
+  thrust_.data = std::min(thrust_max, std::max(0.0,  // control saturation
+      (thrust_0_speed-airspeed)*thrust_p));  // Airspeed P Controller
   thrust_pub_.publish(thrust_);
-}
+}  // publishThrust
 
 void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
-  /*X0[NX] = { parameter[p_index.circle_azimut],
-        parameter[p_index.circle_elevation]+parameter[p_index.circle_angle],
-        -0.5*M_PI, 0.0, 50.0, 0.0 };*/
   // MAVROS OUTPUTS ENU
   const double & x = msg->pose.position.x;
   const double & y = msg->pose.position.y;
   const double & z = msg->pose.position.z;
   double r = sqrt(x*x+y*y+z*z);
   double psi, theta;
-  if (coordinate_flip) {
+  if (COORDINATE_FLIP) {
     psi = atan2(z, x);   // set Azimut Angle
     theta = asin(-y/r);   // set Elevation Angle
   } else {
@@ -536,14 +533,14 @@ void FwNMPC::positionCb(const geometry_msgs::PoseStamped::ConstPtr& msg) {
   aircraft_pose_.header.frame_id = "world";
   aircraft_pose_.pose = msg->pose;
   pose_pub_.publish(aircraft_pose_);  // Publish current aircraft pose in enu
-}
+}  // positionCb
 
 void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   const double & vx = msg->twist.linear.x;
   const double & vy = msg->twist.linear.y;
   const double & vz = msg->twist.linear.z;
   tf::Vector3 velocity_enu(vx, vy, vz);
-  if (coordinate_flip) {  // flip coordinate frame
+  if (COORDINATE_FLIP) {  // flip coordinate frame
     velocity_enu.setY(vz);
     velocity_enu.setZ(-vy);
   }
@@ -556,7 +553,8 @@ void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   tf::Vector3 velocity_sphere;
   velocity_sphere = enu2sphere_rot.transpose() * velocity_enu;
 
-  double gamma = atan2(velocity_sphere.y(), velocity_sphere.x());  // calc Heading Angle
+  // Calculate Heading Angle
+  double gamma = atan2(velocity_sphere.y(), velocity_sphere.x());
   // Wrapping of Horizon
   if (gamma > current_state[x_index.gamma] + M_PI) {
     for (int i = 0; i < N + 1; ++i) {
@@ -569,10 +567,14 @@ void FwNMPC::velocityCb(const geometry_msgs::TwistStamped::ConstPtr& msg) {
   }
   current_state[x_index.gamma] = gamma;  // set Heading Angle
 
-  double vt = std::sqrt(std::pow(velocity_sphere.x(), 2)+std::pow(velocity_sphere.y(), 2));
-  ROS_INFO_STREAM("Set Velocity State: vx " <<  vx << " vy " << vy << " vx_sphere " << velocity_sphere.x() << " vy_sphere " << velocity_sphere.y());
-  current_state[x_index.vt] = std::max(vt, 5.0);  // set sphere velocity with lower bound
-}
+  double vt = std::sqrt(std::pow(velocity_sphere.x(), 2)+
+                        std::pow(velocity_sphere.y(), 2));
+  ROS_INFO_STREAM("Set Velocity State: vx " <<  vx << " vy " << vy <<
+                  " vx_sphere " << velocity_sphere.x() <<
+                  " vy_sphere " << velocity_sphere.y());
+  // set sphere velocity with lower bound to prevent infeasibility in solver
+  current_state[x_index.vt] = std::max(vt, 5.0);
+}  // velocityCb
 
 void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
   // this message comes at 1 Hz and resets the NMPC if not in OFFBOARD mode
@@ -582,29 +584,28 @@ void FwNMPC::stateCb(const mavros_msgs::State::ConstPtr& msg) {
   } else {
     if (static_cast<double>(acado_getObjective()) > 100.0) {
       // Reset only if we are not already tracking the circle well
-      // (std::rand()*1.0/RAND_MAX > 1.0/std::log10(static_cast<double>(acado_getObjective()))) {
       reset_no_offboard_mode = true;
     }
   }
-}
+}  // stateCb
 
 void FwNMPC::vfrHudCb(const mavros_msgs::VFR_HUD::ConstPtr& msg) {
   airspeed = msg->airspeed;
-  publishThrottle();
-}
+  publishThrust();
+}  // vfrHudCb
 
 double FwNMPC::getLoopRate() {
   return LOOP_RATE;
-}
+}  // getLoopRate
 
 double FwNMPC::getTimeStep() {
   return TSTEP;
-}
+}  // getTimeStep
 
 void FwNMPC::shutdown() {
   ROS_INFO("Shutting down NMPC...");
   ros::shutdown();
-}
+}  // shutdown
 
 };  // namespace fw_nmpc
 
@@ -651,5 +652,5 @@ int main(int argc, char **argv) {
   ROS_ERROR("awe_nmpc: closing...");
 
   return 0;
-}  // end main
+}  // main
 
