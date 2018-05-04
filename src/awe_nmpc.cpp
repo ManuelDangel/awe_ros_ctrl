@@ -87,6 +87,7 @@ FwNMPC::FwNMPC() {  // CONSTRUCTOR
   nmpc_.param<bool>("/nmpc/fake_signals", FAKE_SIGNALS, false);
   nmpc_.param<bool>("/nmpc/coordinate_flip", COORDINATE_FLIP, false);
   nmpc_.param<double>("/nmpc/angle_of_attack_deg", angle_of_attack_deg, 0.0);
+  nmpc_.param<double>("/nmpc/roll_angle_init", roll_angle_init, 0.0);
 
   // Initialize Cost Function Parameters from Launch File
   nmpc_.param<double>("/nmpc/cost_control", cost_control, 1.0);
@@ -98,18 +99,29 @@ FwNMPC::FwNMPC() {  // CONSTRUCTOR
   nmpc_.param<double>("/nmpc/thrust_0_speed", thrust_0_speed, 20.0);
   nmpc_.param<double>("/nmpc/thrust_p", thrust_p, 0.1);
 
+  // Initialize Transition Parameter
+  circle_azimut_start = parameter[p_index.circle_azimut];
+  circle_elevation_start = parameter[p_index.circle_elevation];
+  nmpc_.param<double>("/nmpc/wait_time", wait_time, 10000.0);
+  nmpc_.param<double>("/nmpc/transition_time", transition_time, 10000.0);
+  nmpc_.param<double>("/nmpc/circle_azimut_end", circle_azimut_end,
+                      circle_azimut_start);
+  nmpc_.param<double>("/nmpc/circle_elevation_end", circle_elevation_end,
+                      circle_elevation_start);
+
   // Initialize Settings
   t_lastctrl = ros::Time::now();
   loop_counter = 0;
+  offboard_loop_counter = 0;
 
   // Initialize State
   current_state[0] = parameter[p_index.circle_azimut];
   current_state[1] = parameter[p_index.circle_elevation]
       + parameter[p_index.circle_angle];
   current_state[2] = 0.5 * M_PI;
-  current_state[3] = parameter[p_index.circle_angle];
+  current_state[3] = roll_angle_init;
   current_state[4] = 20;
-  current_state[5] = parameter[p_index.circle_angle];
+  current_state[5] = roll_angle_init;
   // roll gets init to circle_angle as a good guess for clockwise circle
   current_radius = parameter[p_index.r];  // initialize radius
   airspeed = 0;
@@ -187,6 +199,9 @@ int FwNMPC::nmpcIteration() {
   ros::Duration t_elapsed;
   // start nmpc iteration timer --> //
   ros::Time t_iter_start = ros::Time::now();
+  if (offboard_mode) {
+    ++offboard_loop_counter;
+  }
 
   // initialize returns //
   int RET[2] = { 0, 0 };
@@ -253,14 +268,13 @@ void FwNMPC::updateACADO_X0() {
     current_state[x_index.phi_des] = acadoVariables.x[x_index.phi_des + NX];
   } else {  // real flying but not controlling
     // keep roll states at a good guess for clockwise circle
-    current_state[x_index.phi] = parameter[p_index.circle_angle];
-    current_state[x_index.phi_des] = parameter[p_index.circle_angle];
+    current_state[x_index.phi] = roll_angle_init;
+    current_state[x_index.phi_des] = roll_angle_init;
   }
 
-
-
   // catch and safe controller failure NaN's and extreme high KKT
-  reset_control_failure = isnan(current_state[x_index.phi_des]);
+  reset_control_failure = (std::isnan(std::abs(current_state[x_index.phi_des]))
+      || std::isnan(acado_getKKT()));
   reset_solution_bad = (acado_getKKT() > 1000000.0);
   if (reset_control_failure || reset_solution_bad || reset_no_offboard_mode) {
     // catch controller failure
@@ -278,8 +292,8 @@ void FwNMPC::updateACADO_X0() {
     reset_no_offboard_mode = false;
     ROS_WARN("NMPC restarting...");
 
-    current_state[x_index.phi_des] = parameter[p_index.circle_angle];
-    current_state[x_index.phi] = parameter[p_index.circle_angle];
+    current_state[x_index.phi_des] = roll_angle_init;
+    current_state[x_index.phi] = roll_angle_init;
     // controls
     double U[NU] = { 0.0, 0.0, 0.0 };
     for (int i = 0; i < N; ++i) {  // set all control back to 0
@@ -304,6 +318,21 @@ void FwNMPC::updateACADO_X0() {
 
 
 void FwNMPC::updateACADO_OD() {
+  // calculate Transition of Circle to Vertical
+  double offboard_time = offboard_loop_counter/LOOP_RATE;
+  if (offboard_time <= wait_time) {
+    parameter[p_index.circle_azimut] = circle_azimut_start;
+    parameter[p_index.circle_elevation] = circle_elevation_start;
+  } else if (offboard_time < wait_time + transition_time) {
+    double blend = (offboard_time-wait_time) / transition_time;
+    parameter[p_index.circle_azimut] = (1-blend) * circle_azimut_start
+        + blend * circle_azimut_end;
+    parameter[p_index.circle_elevation] = (1-blend) * circle_elevation_start
+        + blend * circle_elevation_end;
+  } else {
+    parameter[p_index.circle_azimut] = circle_azimut_end;
+    parameter[p_index.circle_elevation] = circle_elevation_end;
+  }
   // update online data
   for (int i = 0; i < N + 1; ++i) {
     for (int j = 0; j < NOD; ++j)

@@ -91,6 +91,7 @@ class FwNMPC {
   void publishThrust();
 
   int loop_counter;
+  int offboard_loop_counter;
 
  private:
   /* node handles */
@@ -136,6 +137,7 @@ class FwNMPC {
   bool FAKE_SIGNALS;
   bool COORDINATE_FLIP;
   double angle_of_attack_deg;
+  double roll_angle_init;
   double thrust_max;
   double thrust_0_speed;
   double thrust_p;
@@ -150,6 +152,14 @@ class FwNMPC {
   bool reset_solution_bad;  // reset controller if KKT are really bad
   bool reset_no_offboard_mode;  // reset periodically if not in offboard control mode
   bool offboard_mode;  // true if offboard mode is active
+
+  /* Transition Parameters */
+  double wait_time;
+  double transition_time;
+  double circle_azimut_start;
+  double circle_azimut_end;
+  double circle_elevation_start;
+  double circle_elevation_end;
 
   /* node functions */
   void shutdown();
