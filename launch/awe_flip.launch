@@ -22,14 +22,14 @@
     <param name="/nmpc/param_weight_power" type="double" value="0.0" />
 
     <param name="/nmpc/angle_of_attack_deg" type="double" value="5.0" />
-    <param name="/nmpc/roll_angle_init" type="double" value="0.25" />
+    <param name="/nmpc/roll_angle_init" type="double" value="0.35" />
 
     <param name="/nmpc/cost_control" type="double" value="1.0" />
     <param name="/nmpc/cost_tracking" type="double" value="100.0" />
     <param name="/nmpc/cost_power" type="double" value="0.0" />
 
     <param name="/nmpc/thrust_max" type="double" value="0.8" />
-    <param name="/nmpc/thrust_0_speed" type="double" value="20.0" />
+    <param name="/nmpc/thrust_0_speed" type="double" value="22.0" />
     <param name="/nmpc/thrust_p" type="double" value="0.1" />
 
     <param name="/nmpc/wait_time" type="double" value="60.0" />
