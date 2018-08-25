@@ -32,7 +32,7 @@
     <param name="/nmpc/thrust_0_speed" type="double" value="22.0" />
     <param name="/nmpc/thrust_p" type="double" value="0.1" />
 
-    <param name="/nmpc/wait_time" type="double" value="60.0" />
+    <param name="/nmpc/wait_time" type="double" value="40.0" />
     <param name="/nmpc/transition_time" type="double" value="60.0" />
     <param name="/nmpc/circle_azimut_end" type="double" value="1.04" />
     <param name="/nmpc/circle_elevation_end" type="double" value="0.0" />
