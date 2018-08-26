@@ -34,7 +34,7 @@
 
     <param name="/nmpc/wait_time" type="double" value="40.0" />
     <param name="/nmpc/transition_time" type="double" value="60.0" />
-    <param name="/nmpc/circle_azimut_end" type="double" value="2.094" />
+    <param name="/nmpc/circle_azimut_end" type="double" value="0.873" />
     <param name="/nmpc/circle_elevation_end" type="double" value="0.0" />
 
 </launch>
