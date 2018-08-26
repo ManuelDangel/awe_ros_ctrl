@@ -12,7 +12,7 @@
     <param name="/nmpc/param_circle_azimut" type="double" value="1.57" />
     <param name="/nmpc/param_circle_elevation" type="double" value="0.0" />
     <param name="/nmpc/param_circle_angle" type="double" value="0.29" />
-    <param name="/nmpc/param_m" type="double" value="1.7" />
+    <param name="/nmpc/param_m" type="double" value="1.8" />
     <param name="/nmpc/param_cla" type="double" value="0.2" />
     <param name="/nmpc/param_cld" type="double" value="0.025" />
     <param name="/nmpc/param_phi_freq" type="double" value="5.0" />
@@ -34,7 +34,7 @@
 
     <param name="/nmpc/wait_time" type="double" value="40.0" />
     <param name="/nmpc/transition_time" type="double" value="60.0" />
-    <param name="/nmpc/circle_azimut_end" type="double" value="1.04" />
+    <param name="/nmpc/circle_azimut_end" type="double" value="2.094" />
     <param name="/nmpc/circle_elevation_end" type="double" value="0.0" />
 
 </launch>
