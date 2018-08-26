@@ -25,7 +25,7 @@
     <param name="/nmpc/roll_angle_init" type="double" value="0.35" />
 
     <param name="/nmpc/cost_control" type="double" value="1.0" />
-    <param name="/nmpc/cost_tracking" type="double" value="400.0" />
+    <param name="/nmpc/cost_tracking" type="double" value="600.0" />
     <param name="/nmpc/cost_power" type="double" value="0.0" />
 
     <param name="/nmpc/thrust_max" type="double" value="0.8" />
