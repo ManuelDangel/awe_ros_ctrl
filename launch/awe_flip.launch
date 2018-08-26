@@ -13,7 +13,7 @@
     <param name="/nmpc/param_circle_elevation" type="double" value="0.0" />
     <param name="/nmpc/param_circle_angle" type="double" value="0.29" />
     <param name="/nmpc/param_m" type="double" value="1.8" />
-    <param name="/nmpc/param_cla" type="double" value="0.2" />
+    <param name="/nmpc/param_cla" type="double" value="0.16" />
     <param name="/nmpc/param_cld" type="double" value="0.025" />
     <param name="/nmpc/param_phi_freq" type="double" value="5.0" />
     <param name="/nmpc/param_wind_azimut" type="double" value="0.0" />
